@@ -12,6 +12,31 @@ std::string biomeToString(BiomeType biome)
     }
 }
 
+std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
+                                                          bool isStartingBlock)
+{
+    std::mt19937 rng(seed);
+    std::uniform_int_distribution<int> chance(0, 99);
+    std::uniform_int_distribution<int> hazard(0, 1);
+    std::array<LaneType, LANES_PER_BLOCK> lanes{};
+    int dangerStreak = 0;
+
+    for (int row = 0; row < LANES_PER_BLOCK; ++row)
+    {
+        // The starting row is the lower row (index 8) of the first block.
+        const bool forceSafe = (isStartingBlock && row == LANES_PER_BLOCK - 1) ||
+                               dangerStreak >= 3 || chance(rng) < 42;
+        if (forceSafe) {
+            lanes[row] = LaneType::Safe;
+            dangerStreak = 0;
+        } else {
+            lanes[row] = hazard(rng) == 0 ? LaneType::Vehicle : LaneType::Animal;
+            ++dangerStreak;
+        }
+    }
+    return lanes;
+}
+
 BiomeGenerator::BiomeGenerator(std::uint32_t seed)
     : m_rng(seed),
       m_dist(0, static_cast<int>(BiomeType::COUNT) - 1)
@@ -79,6 +104,7 @@ void EndlessMap::spawnBlockAbove()
     block.biome = m_biomeGen.next();
     block.endY = m_nextEndY;
     block.startY = m_nextEndY - m_blockHeight;
+    block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);
     m_nextEndY = block.startY;
     m_blocks.push_front(block);
 }

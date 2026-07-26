@@ -19,6 +19,7 @@ public:
             block.biome = (i % 2 == 0) ? BiomeType::Urban : BiomeType::Desert;
             block.startY = -EndlessMap::BLOCK_HEIGHT * (i + 1);
             block.endY = -EndlessMap::BLOCK_HEIGHT * i;
+            block.lanes = generateLaneLayout(static_cast<std::uint32_t>(level * 100 + i), i == 0);
             m_blocks.push_back(block);
         }
     }

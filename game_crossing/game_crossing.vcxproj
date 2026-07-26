@@ -136,6 +136,7 @@
     <ClCompile Include="CGameObject.cpp" />
     <ClCompile Include="CGameObstacle.cpp" />
     <ClCompile Include="src\Button.cpp" />
+    <ClCompile Include="src\CharacterRenderer.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
     <ClCompile Include="src\persistence\SaveStore.cpp" />
@@ -148,6 +149,7 @@
     <ClInclude Include="CGameObject.h" />
     <ClInclude Include="CGameObstacle.h" />
     <ClInclude Include="include\Button.h" />
+    <ClInclude Include="include\CharacterRenderer.h" />
     <ClInclude Include="include\ClassicMap.h" />
     <ClInclude Include="include\EndlessMap.h" />
     <ClInclude Include="include\Grid.h" />

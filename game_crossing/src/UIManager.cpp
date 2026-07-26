@@ -49,6 +49,19 @@ namespace
                  static_cast<std::uint8_t>( rgb        & 0xFF) };
     }
 
+    sf::Color laneColor(LaneType lane, BiomeType biome)
+    {
+        switch (lane) {
+        case LaneType::Safe:
+            return biome == BiomeType::Desert ? colorFromHex(0xC9A66B)
+                 : biome == BiomeType::Swamp  ? colorFromHex(0x4E8063)
+                                              : colorFromHex(0x57845A);
+        case LaneType::Vehicle: return colorFromHex(0x4A4E57); // asphalt
+        case LaneType::Animal:  return colorFromHex(0x8A704E); // dirt/field
+        }
+        return sf::Color::Magenta;
+    }
+
     std::int64_t nowUnix()
     {
         return std::chrono::duration_cast<std::chrono::seconds>(
@@ -68,6 +81,9 @@ UIManager::UIManager(sf::RenderWindow& window)
     assetsLoaded_  = assetsLoaded_ && lg;
 
     cfg_ = sets_.load();
+    cfg_.cosmetic.characterId = std::clamp(cfg_.cosmetic.characterId, 1,
+                                           CharacterRenderer::kCharacterCount);
+    ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
     saves_.loadAll();
     ranks_.loadAll();
     prog_.load();
@@ -351,13 +367,21 @@ void UIManager::handleGraphic(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Down)   { moveFocus(+1); return; }
         if (k->code == sf::Keyboard::Key::Left)
         {
-            if (focusIdx_ == 0) { cfg_.cosmetic.characterId  = std::max(0, cfg_.cosmetic.characterId  - 1); sets_.save(cfg_); }
+            if (focusIdx_ == 0) {
+                cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1);
+                ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+                sets_.save(cfg_);
+            }
             if (focusIdx_ == 1) { cfg_.cosmetic.backgroundId = std::max(0, cfg_.cosmetic.backgroundId - 1); sets_.save(cfg_); }
             return;
         }
         if (k->code == sf::Keyboard::Key::Right)
         {
-            if (focusIdx_ == 0) { cfg_.cosmetic.characterId  = std::min(7, cfg_.cosmetic.characterId  + 1); sets_.save(cfg_); }
+            if (focusIdx_ == 0) {
+                cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
+                ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+                sets_.save(cfg_);
+            }
             if (focusIdx_ == 1) { cfg_.cosmetic.backgroundId = std::min(7, cfg_.cosmetic.backgroundId + 1); sets_.save(cfg_); }
             return;
         }
@@ -503,6 +527,14 @@ void UIManager::handlePlay(const sf::Event& e)
                             k->code == sf::Keyboard::Key::Down;
         if (!isMove) return;
 
+        // Once the player is fully below the viewport, ignore every movement
+        // key. This prevents clamping an off-screen Y back onto a visible row.
+        if (state_ == UIState::EndlessPlay && isEndlessPlayerOffscreen())
+        {
+            finishEndlessRun();
+            return;
+        }
+
         // The first directional input starts both clock and camera. World
         // position itself is only changed below, never by camera updates.
         gameplayStarted_ = true;
@@ -522,8 +554,15 @@ void UIManager::handlePlay(const sf::Event& e)
             : -Grid::CELL_SIZE * 0.5f;
         // maxWalkablePlayerY() only returns a row that is 100% visible. It
         // therefore prevents stepping into a partially clipped bottom tile.
-        next.y = std::clamp(next.y, topLimit, std::min(mapBottom, maxWalkablePlayerY()));
-        playerWorldPos_ = next;
+        const float minY = topLimit;
+        const float maxY = std::min(mapBottom, maxWalkablePlayerY());
+        const bool verticalMove = k->code == sf::Keyboard::Key::Up ||
+                                  k->code == sf::Keyboard::Key::Down;
+        // Reject invalid vertical movement instead of snapping the player's
+        // current row to maxY; this removes the off-screen teleport.
+        if (verticalMove && next.y >= minY && next.y <= maxY)
+            playerWorldPos_.y = next.y;
+        playerWorldPos_.x = next.x;
 
         // The centre of the final block's top row is the Classic finish tile.
         if (state_ == UIState::ClassicPlay &&
@@ -637,6 +676,14 @@ void UIManager::update(float dt)
         rankScrollOffset_ = std::clamp(rankScrollOffset_, 0, maxOffset);
     }
 
+    // Resolve an already off-screen Endless player before advancing gameplay.
+    // Event input is also guarded in handlePlay(), covering this frame's keys.
+    if (gameplayStarted_ && state_ == UIState::EndlessPlay && isEndlessPlayerOffscreen())
+    {
+        finishEndlessRun();
+        return;
+    }
+
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
         elapsedPlaySec_ += dt;
@@ -648,9 +695,8 @@ void UIManager::update(float dt)
         endlessMap_.update(cameraY_);
         // World position remains unchanged; loss occurs only once the player
         // sprite has passed completely below the bottom view edge.
-        const float playerScreenY = playerWorldPos_.y - cameraY_;
-        if (playerScreenY - PLAYER_RADIUS > Grid::MAP_HEIGHT)
-            setState(UIState::GameOver);
+        if (isEndlessPlayerOffscreen())
+            finishEndlessRun();
     }
 }
 
@@ -694,6 +740,19 @@ float UIManager::maxWalkablePlayerY() const
     const float viewBottom = cameraY_ + Grid::MAP_HEIGHT;
     const float lastCompleteRowBottom = std::floor(viewBottom / Grid::CELL_SIZE) * Grid::CELL_SIZE;
     return lastCompleteRowBottom - Grid::CELL_SIZE * 0.5f;
+}
+
+bool UIManager::isEndlessPlayerOffscreen() const
+{
+    return playerWorldPos_.y - cameraY_ - PLAYER_RADIUS > Grid::MAP_HEIGHT;
+}
+
+void UIManager::finishEndlessRun()
+{
+    if (state_ != UIState::EndlessPlay) return;
+    // Capture result before any future resetGameplay()/EndlessMap::reset().
+    ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+    setState(UIState::GameOver);
 }
 
 void UIManager::updateCamera(float dt)
@@ -805,11 +864,13 @@ void UIManager::rebuildButtons()
         auto y = vstack(260, 2);
         add(y(0), {BTN_W, BTN_H}, "Classic Mode", Button::Style::Primary, [this]{
             ctx_.mode = StateContext::Mode::Classic;
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             nameBuffer_.clear();
             setState(UIState::NameInput);
         });
         add(y(1), {BTN_W, BTN_H}, "Endless Mode", Button::Style::Primary, [this]{
             ctx_.mode = StateContext::Mode::Endless;
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             nameBuffer_.clear();
             setState(UIState::NameInput);
         });
@@ -851,7 +912,8 @@ void UIManager::rebuildButtons()
     {
         auto y = vstack(240, 3);
         add(y(0), {BTN_W, BTN_H}, "Character  ( < / > )", Button::Style::Subtle, [this]{
-            cfg_.cosmetic.characterId = std::min(7, cfg_.cosmetic.characterId + 1);
+            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             sets_.save(cfg_);
         });
         add(y(1), {BTN_W, BTN_H}, "Background  ( < / > )", Button::Style::Subtle, [this]{
@@ -1147,9 +1209,10 @@ void UIManager::renderSetting()
 void UIManager::renderGraphic()
 {
     drawCenteredText("GRAPHIC", 140, 40, sf::Color::White, true);
-    drawCenteredText("Character:  #" + std::to_string(cfg_.cosmetic.characterId),  220, 28, sf::Color::White);
-    drawCenteredText("Background: #" + std::to_string(cfg_.cosmetic.backgroundId), 280, 28, sf::Color::White);
-    drawCenteredText("< / > to cycle  |  Enter confirms  |  Esc back", 340, 18, sf::Color(180, 180, 180));
+    CharacterRenderer::draw(win_, ctx_.selectedCharacterID, { UI_W * 0.5f, 205.f }, 54.f);
+    drawCenteredText(CharacterRenderer::name(ctx_.selectedCharacterID),  290, 28, sf::Color::White, true);
+    drawCenteredText("Background: #" + std::to_string(cfg_.cosmetic.backgroundId), 330, 24, sf::Color::White);
+    drawCenteredText("Select Character or Background, then use < / >", 380, 18, sf::Color(180, 180, 180));
     for (auto& b : btns_) b.draw(win_, font_);
 }
 
@@ -1249,18 +1312,14 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
     if (screenY >= Grid::MAP_HEIGHT || screenY + block.height() <= 0.f)
         return;
 
-    sf::Color fill;
-    switch (block.biome) {
-    case BiomeType::Swamp:  fill = colorFromHex(0x35654D); break;
-    case BiomeType::Urban:  fill = colorFromHex(0x4D5563); break;
-    case BiomeType::Desert: fill = colorFromHex(0xC99B52); break;
-    default:                fill = sf::Color::Magenta; break;
+    // Each block owns a 9-row lane layout. Entity systems can later spawn
+    // vehicles/animals only on their matching LaneType rows.
+    sf::RectangleShape lane({Grid::MAP_WIDTH, Grid::CELL_SIZE});
+    for (int row = 0; row < LANES_PER_BLOCK; ++row) {
+        lane.setPosition({0.f, screenY + row * Grid::CELL_SIZE});
+        lane.setFillColor(laneColor(block.lanes[row], block.biome));
+        win_.draw(lane);
     }
-
-    sf::RectangleShape background({Grid::MAP_WIDTH, block.height()});
-    background.setPosition({0.f, screenY});
-    background.setFillColor(fill);
-    win_.draw(background);
 
     // All 11 columns are rendered (and available to obstacle systems). Only
     // the two outer columns on either side are darkened as non-walkable lanes.
@@ -1290,13 +1349,8 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 
 void UIManager::drawPlayer()
 {
-    sf::CircleShape player(42.f);
-    player.setOrigin({42.f, 42.f});
-    player.setPosition({playerWorldPos_.x, playerWorldPos_.y - cameraY_});
-    player.setFillColor(colorFromHex(0xF04B4B));
-    player.setOutlineColor(sf::Color::White);
-    player.setOutlineThickness(4.f);
-    win_.draw(player);
+    CharacterRenderer::draw(win_, ctx_.selectedCharacterID,
+                            {playerWorldPos_.x, playerWorldPos_.y - cameraY_}, PLAYER_RADIUS);
 }
 
 void UIManager::renderPlay()

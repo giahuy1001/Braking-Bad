@@ -5,6 +5,7 @@
 #include "Button.h"
 #include "EndlessMap.h"
 #include "ClassicMap.h"
+#include "CharacterRenderer.h"
 #include "persistence/SaveStore.h"
 #include "persistence/RankingStore.h"
 #include "persistence/ProgressStore.h"
@@ -94,6 +95,8 @@ private:
     void resetGameplay();
     void updateCamera(float dt);
     float maxWalkablePlayerY() const;
+    bool isEndlessPlayerOffscreen() const;
+    void finishEndlessRun();
     sf::Vector2f toUiCoords(sf::Vector2i pixel) const;
 
     // Members

@@ -34,6 +34,7 @@ struct StateContext
 
     Mode        mode          = Mode::None;
     int         level         = 0;     // 1..10 for ClassicPlay
+    int         selectedCharacterID = 1;
     std::string pendingName;           // captured by NameInput
     int         endlessScore  = 0;     // written into ranking on GameOver
     int         endlessSec    = 0;

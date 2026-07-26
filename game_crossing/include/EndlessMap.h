@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
 #include <deque>
 #include <random>
 #include <string>
@@ -16,11 +17,23 @@ enum class BiomeType : std::uint8_t {
 
 std::string biomeToString(BiomeType biome);
 
+enum class LaneType : std::uint8_t {
+    Safe = 0,
+    Vehicle,
+    Animal
+};
+
+constexpr int LANES_PER_BLOCK = 9;
+std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
+                                                           bool isStartingBlock);
+
 struct MapBlock {
     std::uint32_t blockID{0};
     BiomeType biome{BiomeType::Swamp};
     float startY{0.f};
     float endY{0.f};
+    // Row 0 is the top row, row 8 is the bottom row of the block.
+    std::array<LaneType, LANES_PER_BLOCK> lanes{};
 
     float height() const { return endY - startY; }
     bool contains(float worldY) const { return worldY >= startY && worldY <= endY; }

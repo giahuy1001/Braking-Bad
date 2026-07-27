@@ -1,1 +1,13 @@
-﻿  game_crossing.vcxproj -> D:\Download\OOP\Project\Braking-Bad\x64\Debug\game_crossing.exe
+﻿  CGameObject.cpp
+  CGameObstacle.cpp
+  Button.cpp
+  CharacterRenderer.cpp
+  EndlessMap.cpp
+  UIManager.cpp
+  SaveStore.cpp
+  RankingStore.cpp
+  SettingsStore.cpp
+  ProgressStore.cpp
+  game_crossing.cpp
+  Generating Code...
+  game_crossing.vcxproj -> D:\Download\OOP\Project\Braking-Bad\x64\Debug\game_crossing.exe

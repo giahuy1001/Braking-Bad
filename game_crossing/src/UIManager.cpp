@@ -69,16 +69,52 @@ namespace
     }
 }
 
-UIManager::UIManager(sf::RenderWindow& window)
-    : win_(window), uiView_({UI_W * 0.5f, UI_H * 0.5f}, {UI_W, UI_H})
-{
-    if (!font_.openFromFile("C:/Windows/Fonts/arial.ttf"))
-        std::cerr << "[UIManager] failed to load font\n";
+const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
+    // Right-side vertical menu: Play, Load, Graphic, Setting.
+    sf::FloatRect({ 1416.f, 410.f }, { 314.f, 105.f }),
+    sf::FloatRect({ 1416.f, 540.f }, { 314.f, 105.f }),
+    sf::FloatRect({ 1416.f, 656.f }, { 314.f, 105.f }),
+    sf::FloatRect({ 1416.f, 781.f }, { 314.f, 105.f }),
+    // Bottom-right round icons: Leaderboard, Help, Exit.
+    sf::FloatRect({ 1555.f, 980.f }, { 94.f, 94.f }),
+    sf::FloatRect({ 1684.f, 980.f }, { 94.f, 94.f }),
+    sf::FloatRect({ 1807.f, 980.f }, { 94.f, 94.f })
+};
 
-    assetsLoaded_  = bgTex_.loadFromFile("Graphic/1x/Main menu.png");
+UIManager::UIManager(sf::RenderWindow& window)
+    : win_(window),
+      uiView_({UI_W * 0.5f, UI_H * 0.5f}, {UI_W, UI_H}),
+      debugText_(font_, "", 18)
+{
+    // Use a project font first, then Windows fonts. This keeps debug text
+    // visible even when the game is launched outside the IDE's working dir.
+    const std::array<std::string, 5> fontCandidates = {
+        "assets/fonts/arial.ttf",
+        "assets/font/arial.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+        "C:/Windows/Fonts/tahoma.ttf"
+    };
+    for (const std::string& path : fontCandidates)
+    {
+        if (font_.openFromFile(path))
+        {
+            fontLoaded_ = true;
+            break;
+        }
+    }
+    if (!fontLoaded_)
+        std::cerr << "[UIManager] failed to load a UI/debug font\n";
+
+    debugText_.setCharacterSize(18);
+    debugText_.setFillColor(sf::Color::Yellow);
+    debugText_.setOutlineColor(sf::Color::Black);
+    debugText_.setOutlineThickness(2.f);
+
     const bool lg  = logoTex_.loadFromFile("Graphic/1x/DataList.png");
     (void)        iconsTex_.loadFromFile("Graphic/1x/DataList.png");
-    assetsLoaded_  = assetsLoaded_ && lg;
+    (void)lg; // The seasonal backgrounds are the only required UI images.
+    setTheme("autumn");
 
     cfg_ = sets_.load();
     cfg_.cosmetic.characterId = std::clamp(cfg_.cosmetic.characterId, 1,
@@ -92,6 +128,44 @@ UIManager::UIManager(sf::RenderWindow& window)
 }
 
 UIManager::~UIManager() = default;
+
+bool UIManager::setTheme(const std::string& seasonName)
+{
+    if (seasonName.empty()) return false;
+
+    // Asset folders in this project currently start with a capital letter,
+    // while the public API accepts the documented lowercase names. Try both.
+    std::string folder = seasonName;
+    folder[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(folder[0])));
+
+    auto load = [&](sf::Texture& texture, const std::string& image, bool allowJpg) {
+        const std::array<std::string, 2> folders = { seasonName, folder };
+        for (const std::string& candidateFolder : folders)
+        {
+            const std::string stem = "assets/theme/" + candidateFolder + "/" + image;
+            if (texture.loadFromFile(stem + ".png")) return true;
+            if (allowJpg && texture.loadFromFile(stem + ".jpg")) return true;
+            if (allowJpg && texture.loadFromFile(stem + ".jpeg")) return true;
+        }
+        return false;
+    };
+
+    sf::Texture newMain, newSetting, newGraphic;
+    if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
+        !load(newGraphic, "Graphic", false))
+    {
+        std::cerr << "[UIManager] failed to load theme '" << seasonName
+                  << "' from assets/theme/<season>/\n";
+        return false;
+    }
+
+    bgTex_ = std::move(newMain);
+    settingBgTex_ = std::move(newSetting);
+    graphicBgTex_ = std::move(newGraphic);
+    currentTheme_ = seasonName;
+    assetsLoaded_ = true;
+    return true;
+}
 
 // ---------------------------------------------------------------------
 //  Public run loop
@@ -115,9 +189,36 @@ void UIManager::handleEvents()
     while (const std::optional<sf::Event> event = win_.pollEvent())
     {
         if (event->is<sf::Event::Closed>())
+
         {
             win_.close();
             return;
+        }
+
+        if (const auto* key = event->getIf<sf::Event::KeyPressed>())
+        {
+            if (key->code == sf::Keyboard::Key::F3 || key->code == sf::Keyboard::Key::D)
+            {
+                debugUi_ = !debugUi_;
+                std::cout << "[UI Debug] " << (debugUi_ ? "enabled" : "disabled") << '\n';
+                continue;
+            }
+        }
+
+        // Debug clicks are intentionally consumed: measuring a coordinate must
+        // not accidentally start a game or close the application.
+        if (debugUi_)
+        {
+            if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>();
+                mouse && mouse->button == sf::Mouse::Button::Left)
+            {
+                const sf::Vector2f base = toBaseCoords(mouse->position);
+                std::cout << "[UI Debug] Clicked at Screen(" << mouse->position.x << ", "
+                          << mouse->position.y << ") | Base("
+                          << static_cast<int>(std::lround(base.x)) << ", "
+                          << static_cast<int>(std::lround(base.y)) << ")\n";
+                continue;
+            }
         }
 
         // Modal always wins while it is up.
@@ -181,37 +282,23 @@ void UIManager::handleMainMenu(const sf::Event& e)
     if (const auto* key = e.getIf<sf::Event::KeyPressed>())
     {
         if (key->code == sf::Keyboard::Key::Escape) { modal_ = Modal::ConfirmExit; return; }
-        if (key->code == sf::Keyboard::Key::Up)   { moveFocus(-1); return; }
-        if (key->code == sf::Keyboard::Key::Down) { moveFocus(+1); return; }
-        if (key->code == sf::Keyboard::Key::Enter) { activateFocused(); return; }
+        if (key->code == sf::Keyboard::Key::Up)   { focusIdx_ = (focusIdx_ + 6) % 7; return; }
+        if (key->code == sf::Keyboard::Key::Down) { focusIdx_ = (focusIdx_ + 1) % 7; return; }
+        if (key->code == sf::Keyboard::Key::Enter) { activateMainMenuButton(focusIdx_); return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            for (int i = 0; i < (int)btns_.size(); ++i)
-            {
-                if (btns_[i].consumeClick(mp))
-                {
-                    focusIdx_ = i;
-                    activateFocused();
-                    return;
-                }
-            }
+            const int button = menuButtonAt(mm->position);
+            if (button >= 0) activateMainMenuButton(static_cast<std::size_t>(button));
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
-        }
+        const int button = menuButtonAt(mm->position);
+        if (button >= 0) focusIdx_ = button;
     }
 }
 
@@ -799,6 +886,48 @@ sf::Vector2f UIManager::toUiCoords(sf::Vector2i pixel) const
     return win_.mapPixelToCoords(pixel, uiView_);
 }
 
+sf::Vector2f UIManager::toBaseCoords(sf::Vector2i pixel) const
+{
+    const sf::Vector2u size = win_.getSize();
+    if (size.x == 0 || size.y == 0) return {};
+    return { pixel.x * (WINDOW_W / static_cast<float>(size.x)),
+             pixel.y * (WINDOW_H / static_cast<float>(size.y)) };
+}
+
+sf::FloatRect UIManager::scaledMenuBounds(std::size_t index) const
+{
+    const sf::Vector2u size = win_.getSize();
+    const sf::FloatRect base = kMainMenuButtonBounds.at(index);
+    const float sx = size.x / static_cast<float>(WINDOW_W);
+    const float sy = size.y / static_cast<float>(WINDOW_H);
+    return { { base.position.x * sx, base.position.y * sy },
+             { base.size.x * sx, base.size.y * sy } };
+}
+
+int UIManager::menuButtonAt(sf::Vector2i pixel) const
+{
+    const sf::Vector2f point(static_cast<float>(pixel.x), static_cast<float>(pixel.y));
+    for (std::size_t i = 0; i < kMainMenuButtonBounds.size(); ++i)
+        if (scaledMenuBounds(i).contains(point)) return static_cast<int>(i);
+    return -1;
+}
+
+void UIManager::activateMainMenuButton(std::size_t index)
+{
+    focusIdx_ = static_cast<int>(index);
+    switch (index)
+    {
+    case 0: setState(UIState::ModeSelect); break;                         // Play
+    case 1: loadTabModeIdx_ = 0; setState(UIState::LoadGame); break;      // Load
+    case 2: setState(UIState::Graphic); break;                             // Graphic
+    case 3: setState(UIState::Setting); break;                             // Setting
+    case 4: rankTabModeIdx_ = 0; rankScrollOffset_ = 0; setState(UIState::Ranking); break;
+    case 5: setState(UIState::Help); break;
+    case 6: modal_ = Modal::ConfirmExit; break;
+    default: break;
+    }
+}
+
 void UIManager::moveFocus(int dir)
 {
     if (btns_.empty()) return;
@@ -848,14 +977,9 @@ void UIManager::rebuildButtons()
     {
     case UIState::MainMenu:
     {
-        auto y = vstack(220, 7);
-        add(y(0), {BTN_W, BTN_H}, "New Game",  Button::Style::Primary, [this]{ setState(UIState::ModeSelect); });
-        add(y(1), {BTN_W, BTN_H}, "Load Game", Button::Style::Primary, [this]{ loadTabModeIdx_ = 0; setState(UIState::LoadGame); });
-        add(y(2), {BTN_W, BTN_H}, "Ranking",   Button::Style::Primary, [this]{ rankTabModeIdx_ = 0; rankScrollOffset_ = 0; setState(UIState::Ranking); });
-        add(y(3), {BTN_W, BTN_H}, "Setting",   Button::Style::Primary, [this]{ setState(UIState::Setting); });
-        add(y(4), {BTN_W, BTN_H}, "Graphic",   Button::Style::Primary, [this]{ setState(UIState::Graphic); });
-        add(y(5), {BTN_W, BTN_H}, "Help",      Button::Style::Primary, [this]{ setState(UIState::Help); });
-        add(y(6), {BTN_W, BTN_H}, "Exit",      Button::Style::Danger,  [this]{ modal_ = Modal::ConfirmExit; });
+        // Main-menu buttons are painted into MainMenu.png.  Their hit areas
+        // live in kMainMenuButtonBounds and therefore deliberately have no
+        // Button objects (and no visible fill or outline) here.
         break;
     }
 
@@ -1016,15 +1140,86 @@ void UIManager::drawBackground()
 {
     if (assetsLoaded_)
     {
-        sf::Sprite s(bgTex_);
-        s.setScale({ UI_W / bgTex_.getSize().x,
-                     UI_H / bgTex_.getSize().y });
+        const sf::Texture* texture = &bgTex_;
+        if (state_ == UIState::Setting) texture = &settingBgTex_;
+        else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
+
+        const sf::Vector2u windowSize = win_.getSize();
+        const sf::Vector2u textureSize = texture->getSize();
+        if (textureSize.x == 0 || textureSize.y == 0) return;
+        sf::Sprite s(*texture);
+        s.setScale({ windowSize.x / static_cast<float>(textureSize.x),
+                     windowSize.y / static_cast<float>(textureSize.y) });
         win_.draw(s);
     }
     else
     {
         win_.clear(colorFromHex(0x12121A));
     }
+}
+
+void UIManager::drawMainMenuDebugOverlay()
+{
+    static const std::array<std::string, 7> labels = {
+        "Play", "Load", "Graphic", "Setting", "Leaderboard", "Help", "Exit"
+    };
+    const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+    const sf::Vector2f point(static_cast<float>(mouse.x), static_cast<float>(mouse.y));
+
+    for (std::size_t i = 0; i < kMainMenuButtonBounds.size(); ++i)
+    {
+        const sf::FloatRect bounds = scaledMenuBounds(i);
+        sf::RectangleShape outline(bounds.size);
+        outline.setPosition(bounds.position);
+        outline.setFillColor(sf::Color::Transparent);
+        outline.setOutlineThickness(2.f);
+        outline.setOutlineColor(bounds.contains(point) ? sf::Color::Red : sf::Color::Green);
+        win_.draw(outline);
+
+        sf::Text label(font_, labels[i], 16);
+        label.setFillColor(sf::Color::White);
+        label.setPosition({ bounds.position.x + 4.f, bounds.position.y - 22.f });
+        win_.draw(label);
+    }
+}
+
+void UIManager::drawMainMenuHoverGlow()
+{
+    const int hovered = menuButtonAt(sf::Mouse::getPosition(win_));
+    if (hovered < 0) return; // Normal state is fully transparent.
+
+    const sf::FloatRect bounds = scaledMenuBounds(static_cast<std::size_t>(hovered));
+    if (hovered < 4)
+    {
+        sf::RectangleShape glow(bounds.size);
+        glow.setPosition(bounds.position);
+        glow.setFillColor(sf::Color(255, 215, 0, 90));
+        win_.draw(glow);
+    }
+    else
+    {
+        const float radius = std::min(bounds.size.x, bounds.size.y) * 0.5f;
+        sf::CircleShape glow(radius);
+        glow.setPosition({ bounds.position.x + (bounds.size.x - radius * 2.f) * 0.5f,
+                           bounds.position.y + (bounds.size.y - radius * 2.f) * 0.5f });
+        glow.setFillColor(sf::Color(255, 255, 255, 90));
+        win_.draw(glow);
+    }
+}
+
+void UIManager::drawMouseDebugInfo()
+{
+    if (!fontLoaded_) return;
+
+    const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+    const sf::Vector2f base = toBaseCoords(mouse);
+    const std::string info = "Screen: (" + std::to_string(mouse.x) + ", " + std::to_string(mouse.y) + ")\n"
+                           + "Base: (" + std::to_string(static_cast<int>(std::lround(base.x))) + ", "
+                           + std::to_string(static_cast<int>(std::lround(base.y))) + ")";
+    debugText_.setString(info);
+    debugText_.setPosition({ static_cast<float>(mouse.x) + 15.f,
+                             static_cast<float>(mouse.y) + 15.f });
+    win_.draw(debugText_);
 }
 
 void UIManager::drawBackIcon()
@@ -1087,11 +1282,18 @@ void UIManager::drawCenteredText(const std::string& s, float y, unsigned int siz
 void UIManager::render()
 {
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
-    win_.setView(gameplay ? win_.getDefaultView() : uiView_);
     if (gameplay)
+    {
+        win_.setView(win_.getDefaultView());
         win_.clear(sf::Color(21, 25, 31));
+    }
     else
+    {
+        // Backgrounds use physical window pixels so they fill any resolution.
+        win_.setView(win_.getDefaultView());
         drawBackground();
+        win_.setView(uiView_);
+    }
 
     switch (state_)
     {
@@ -1114,6 +1316,24 @@ void UIManager::render()
     if (!gameplay) {
         drawBackIcon();
         drawModalOverlay();
+    }
+
+    // The transparent menu hitboxes need only a hover layer. Draw it after
+    // the menu image, but before debug information.
+    if (state_ == UIState::MainMenu)
+    {
+        win_.setView(win_.getDefaultView());
+        drawMainMenuHoverGlow();
+    }
+
+    // Last draw calls in the frame: debug text cannot be hidden by a
+    // background, modal, button or hover effect. It also works in gameplay.
+    if (debugUi_)
+    {
+        win_.setView(win_.getDefaultView());
+        if (state_ == UIState::MainMenu)
+            drawMainMenuDebugOverlay();
+        drawMouseDebugInfo();
     }
     win_.display();
 }
@@ -1138,9 +1358,7 @@ void UIManager::renderBoot()
 
 void UIManager::renderMainMenu()
 {
-    drawCenteredText("CROSSING DEAD", 110, 64, colorFromHex(0xB41E1E), true);
-    for (auto& b : btns_) b.draw(win_, font_);
-    drawCenteredText("ESC to quit",  UI_H - 40.f, 18, sf::Color(150, 150, 150));
+    // Artwork and labels are part of the seasonal MainMenu background.
 }
 
 void UIManager::renderModeSel()

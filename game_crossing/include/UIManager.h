@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include <array>
+#include <functional>
 
 // ---------------------------------------------------------------------
 //  Central UI controller.  Owns the window, the assets, the persistence
@@ -33,6 +34,12 @@ public:
     ~UIManager();
 
     void run();                                 // main loop body
+
+    // Loads MainMenu, Setting and Graphic from assets/theme/<season>/.
+    // Returns false and keeps the currently active theme when a required
+    // image is missing or cannot be decoded.
+    bool setTheme(const std::string& seasonName);
+    const std::string& currentTheme() const { return currentTheme_; }
 
 private:
     // Per-frame phases
@@ -65,6 +72,9 @@ private:
 
     // Drawing helpers
     void drawBackground();
+    void drawMainMenuHoverGlow();
+    void drawMainMenuDebugOverlay();
+    void drawMouseDebugInfo();
     void drawBackIcon();
     void drawModalOverlay();
     void drawCenteredText(const std::string& s, float y,
@@ -98,13 +108,26 @@ private:
     bool isEndlessPlayerOffscreen() const;
     void finishEndlessRun();
     sf::Vector2f toUiCoords(sf::Vector2i pixel) const;
+    sf::Vector2f toBaseCoords(sf::Vector2i pixel) const;
+    sf::FloatRect scaledMenuBounds(std::size_t index) const;
+    int menuButtonAt(sf::Vector2i pixel) const;
+    void activateMainMenuButton(std::size_t index);
 
     // Members
     sf::RenderWindow& win_;
     sf::View uiView_;
     sf::Font   font_;
-    sf::Texture bgTex_, logoTex_, iconsTex_;
+    sf::Text   debugText_;
+    bool       fontLoaded_ = false;
+    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, logoTex_, iconsTex_;
     bool       assetsLoaded_ = false;
+    std::string currentTheme_ = "spring";
+    bool       debugUi_ = false;
+
+    // Coordinates are in the authored 1920x1080 image.  Adjust only these
+    // values after using F3/D debug mode; rendering and collision scale them
+    // automatically to the real window size.
+    static const std::array<sf::FloatRect, 7> kMainMenuButtonBounds;
 
     UIState        state_                = UIState::Boot;
     UIState        stateBeforeModal_     = UIState::MainMenu;

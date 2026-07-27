@@ -1,6 +1,8 @@
-#include "EndlessMap.h"
+﻿#include "EndlessMap.h"
 
 #include <random>
+#include <fstream>
+#include <sstream>
 
 std::string biomeToString(BiomeType biome)
 {
@@ -13,7 +15,7 @@ std::string biomeToString(BiomeType biome)
 }
 
 std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
-                                                          bool isStartingBlock)
+    bool isStartingBlock)
 {
     std::mt19937 rng(seed);
     std::uniform_int_distribution<int> chance(0, 99);
@@ -25,11 +27,12 @@ std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
     {
         // The starting row is the lower row (index 8) of the first block.
         const bool forceSafe = (isStartingBlock && row == LANES_PER_BLOCK - 1) ||
-                               dangerStreak >= 3 || chance(rng) < 42;
+            dangerStreak >= 3 || chance(rng) < 42;
         if (forceSafe) {
             lanes[row] = LaneType::Safe;
             dangerStreak = 0;
-        } else {
+        }
+        else {
             lanes[row] = hazard(rng) == 0 ? LaneType::Vehicle : LaneType::Animal;
             ++dangerStreak;
         }
@@ -37,9 +40,41 @@ std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
     return lanes;
 }
 
+bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes)
+{
+    std::ifstream file(filename);
+    if (!file.is_open()) return false;
+
+    std::string line;
+    for (int i = 0; i < LANES_PER_BLOCK && std::getline(file, line); ++i)
+    {
+        outManholes[i] = -1; // Mặc định không có
+        if (line.empty()) continue;
+
+        if (line[0] == 'V') outLanes[i] = LaneType::Vehicle;
+        else if (line[0] == 'A') outLanes[i] = LaneType::Animal;
+        else if (line[0] == 'S') {
+            outLanes[i] = LaneType::Safe;
+            // Xử lý đọc cột nắp cống nếu có dấu ':'
+            size_t colonPos = line.find(':');
+            if (colonPos != std::string::npos) {
+                std::stringstream ss(line.substr(colonPos + 1));
+                int col;
+                if (ss >> col) outManholes[i] = col;
+            }
+        }
+    }
+    return true;
+}
+
+bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes)
+{
+    return loadMapFromFile("assets/map/map_level_" + std::to_string(levelID) + ".txt", outLanes, outManholes);
+}
+
 BiomeGenerator::BiomeGenerator(std::uint32_t seed)
     : m_rng(seed),
-      m_dist(0, static_cast<int>(BiomeType::COUNT) - 1)
+    m_dist(0, static_cast<int>(BiomeType::COUNT) - 1)
 {
 }
 
@@ -48,9 +83,9 @@ BiomeType BiomeGenerator::next()
     int pick = m_dist(m_rng);
     int attempts = 0;
     while (m_lastBiome != BiomeType::COUNT &&
-           m_repeatCount >= MAX_REPEAT &&
-           static_cast<BiomeType>(pick) == m_lastBiome &&
-           attempts++ < 100) {
+        m_repeatCount >= MAX_REPEAT &&
+        static_cast<BiomeType>(pick) == m_lastBiome &&
+        attempts++ < 100) {
         pick = m_dist(m_rng);
     }
 
@@ -66,7 +101,7 @@ BiomeType BiomeGenerator::next()
 
 EndlessMap::EndlessMap(float blockHeight, std::uint32_t seed)
     : m_biomeGen(seed == 0 ? std::random_device{}() : seed),
-      m_blockHeight(blockHeight)
+    m_blockHeight(blockHeight)
 {
 }
 
@@ -89,7 +124,7 @@ void EndlessMap::update(float cameraY)
     // The camera moves up (towards negative Y). Once a lower block is fully
     // below the viewport, discard it and extend the course above the camera.
     while (!m_blocks.empty() &&
-           cameraY + BLOCK_HEIGHT <= m_blocks.back().startY) {
+        cameraY + BLOCK_HEIGHT <= m_blocks.back().startY) {
         removeLowestBlock();
         spawnBlockAbove();
     }
@@ -104,7 +139,14 @@ void EndlessMap::spawnBlockAbove()
     block.biome = m_biomeGen.next();
     block.endY = m_nextEndY;
     block.startY = m_nextEndY - m_blockHeight;
-    block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);
+    std::random_device rd;
+    std::mt19937 localRng(rd());
+    std::uniform_int_distribution<int> mapDist(1, 10);
+    int randomMap = mapDist(localRng);
+
+    if (!loadMapFromFile(randomMap, block.lanes, block.manholeCols)) {
+        block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);
+    }
     m_nextEndY = block.startY;
     m_blocks.push_front(block);
 }

@@ -53,11 +53,11 @@ namespace
     {
         switch (lane) {
         case LaneType::Safe:
-            return biome == BiomeType::Desert ? colorFromHex(0xC9A66B)
-                 : biome == BiomeType::Swamp  ? colorFromHex(0x4E8063)
-                                              : colorFromHex(0x57845A);
-        case LaneType::Vehicle: return colorFromHex(0x4A4E57); // asphalt
-        case LaneType::Animal:  return colorFromHex(0x8A704E); // dirt/field
+            return colorFromHex(0x4E8063); // Ép toàn bộ làn S thành màu xanh lá
+        case LaneType::Vehicle:
+            return colorFromHex(0x4A4E57); // Giữ nguyên màu xám
+        case LaneType::Animal:
+            return colorFromHex(0x8A704E); // Giữ nguyên màu vàng đất
         }
         return sf::Color::Magenta;
     }
@@ -632,6 +632,49 @@ void UIManager::handlePlay(const sf::Event& e)
             playerWorldPos_.y = next.y;
         playerWorldPos_.x = next.x;
 
+        // ĐOẠN CODE CẦN THÊM: Kiểm tra xem người chơi có đạp trúng nắp cống không
+        int playerCol = static_cast<int>(playerWorldPos_.x / Grid::CELL_SIZE);
+        bool steppedOnManhole = false;
+
+        auto checkManhole = [&](const auto& mapBlocks) {
+            for (const auto& block : mapBlocks) {
+                // Kiểm tra xem người chơi đang đứng trong block (bản đồ) nào
+                if (block.contains(playerWorldPos_.y)) {
+                    // Tính toán xem đang đứng ở hàng (row) thứ mấy trong block đó
+                    int row = static_cast<int>((playerWorldPos_.y - block.startY) / Grid::CELL_SIZE);
+                    if (row >= 0 && row < LANES_PER_BLOCK) {
+                        // Nếu vị trí cột của người chơi trùng với cột có nắp cống (-1 là không có)
+                        if (block.manholeCols[row] == playerCol) {
+                            steppedOnManhole = true;
+                        }
+                    }
+                    break; // Đã tìm thấy block hiện tại nên không cần duyệt tiếp
+                }
+            }
+            };
+
+        // Áp dụng kiểm tra cho chế độ tương ứng
+        if (state_ == UIState::ClassicPlay) {
+            checkManhole(classicMap_.getBlocks());
+        }
+        else if (state_ == UIState::EndlessPlay) {
+            checkManhole(endlessMap_.getBlocks());
+        }
+
+        // Xử lý GameOver nếu đạp trúng nắp cống
+        if (steppedOnManhole) {
+            if (state_ == UIState::EndlessPlay) {
+                finishEndlessRun();
+            }
+            else {
+                classicWon_ = false; // Đánh dấu thua game ở chế độ Classic
+                ctx_.classicLevel = ctx_.level;
+                ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                setState(UIState::GameOver);
+            }
+            return; // Dừng hàm tại đây để không cập nhật thêm logic chiến thắng
+        }
+
         // The centre of the final block's top row is the Classic finish tile.
         if (state_ == UIState::ClassicPlay &&
             playerWorldPos_.y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
@@ -654,6 +697,17 @@ void UIManager::handleGameOver(const sf::Event& e)
         {
             if (classicWon_)
             {
+                // ĐOẠN CODE ĐƯỢC THÊM: Sửa lỗi quên lưu Ranking khi thắng Classic
+                RunRecord r;
+                r.name = ctx_.pendingName;
+                r.mode = GameMode::Classic;
+                r.level = ctx_.classicLevel;
+                r.elapsedSec = ctx_.classicSec;
+                r.score = 0;
+                // Hàm nowUnix() lấy thời gian thực, có sẵn trong file UIManager.cpp của bạn
+                r.savedAtUnix = nowUnix();
+                ranks_.submit(r);
+
                 classicWon_ = false;
                 setState(UIState::LevelSelect);
                 return;
@@ -687,13 +741,41 @@ void UIManager::handlePause(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape) handleBack();
+        if (k->code == sf::Keyboard::Key::Escape)
+        {
+            // TẠO BẢN LƯU TRƯỚC KHI THOÁT
+            RunRecord r;
+            r.name = ctx_.pendingName;
+
+            if (ctx_.mode == StateContext::Mode::Classic) {
+                r.mode = GameMode::Classic;
+                r.level = ctx_.level;
+                r.elapsedSec = static_cast<int>(elapsedPlaySec_);
+                r.score = 0;
+            }
+            else {
+                r.mode = GameMode::Endless;
+                r.level = 0;
+                r.elapsedSec = static_cast<int>(elapsedPlaySec_);
+                r.score = ctx_.endlessScore;
+            }
+            r.savedAtUnix = nowUnix();
+
+            // Lưu chính xác tọa độ
+            r.playerX = playerWorldPos_.x;
+            r.playerY = playerWorldPos_.y;
+            r.cameraY = cameraY_;
+
+            // Đẩy vào slot mới nhất
+            saves_.push(r);
+
+            handleBack();
+        }
         if (k->code == sf::Keyboard::Key::Enter)
         {
-            // Resume: go back to the gameplay state we came from.
             setState(ctx_.mode == StateContext::Mode::Endless
-                     ? UIState::EndlessPlay
-                     : UIState::ClassicPlay);
+                ? UIState::EndlessPlay
+                : UIState::ClassicPlay);
         }
     }
 }
@@ -986,27 +1068,32 @@ void UIManager::rebuildButtons()
     {
     case UIState::MainMenu:
     {
-        // Main-menu buttons are painted into MainMenu.png.  Their hit areas
-        // live in kMainMenuButtonBounds and therefore deliberately have no
-        // Button objects (and no visible fill or outline) here.
+        auto y = vstack(220, 7);
+        add(y(0), { BTN_W, BTN_H }, "New Game", Button::Style::Primary, [this] { setState(UIState::ModeSelect); });
+        add(y(1), { BTN_W, BTN_H }, "Load Game", Button::Style::Primary, [this] { loadTabModeIdx_ = 0; setState(UIState::LoadGame); });
+        add(y(2), { BTN_W, BTN_H }, "Ranking", Button::Style::Primary, [this] { rankTabModeIdx_ = 0; rankScrollOffset_ = 0; setState(UIState::Ranking); });
+        add(y(3), { BTN_W, BTN_H }, "Setting", Button::Style::Primary, [this] { setState(UIState::Setting); });
+        add(y(4), { BTN_W, BTN_H }, "Graphic", Button::Style::Primary, [this] { setState(UIState::Graphic); });
+        add(y(5), { BTN_W, BTN_H }, "Help", Button::Style::Primary, [this] { setState(UIState::Help); });
+        add(y(6), { BTN_W, BTN_H }, "Exit", Button::Style::Danger, [this] { modal_ = Modal::ConfirmExit; });
         break;
     }
 
     case UIState::ModeSelect:
     {
         auto y = vstack(260, 2);
-        add(y(0), {BTN_W, BTN_H}, "Classic Mode", Button::Style::Primary, [this]{
+        add(y(0), { BTN_W, BTN_H }, "Classic Mode", Button::Style::Primary, [this] {
             ctx_.mode = StateContext::Mode::Classic;
             ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             nameBuffer_.clear();
             setState(UIState::NameInput);
-        });
-        add(y(1), {BTN_W, BTN_H}, "Endless Mode", Button::Style::Primary, [this]{
+            });
+        add(y(1), { BTN_W, BTN_H }, "Endless Mode", Button::Style::Primary, [this] {
             ctx_.mode = StateContext::Mode::Endless;
             ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             nameBuffer_.clear();
             setState(UIState::NameInput);
-        });
+            });
         break;
     }
 
@@ -1023,31 +1110,47 @@ void UIManager::rebuildButtons()
             const bool unlocked = level <= prog_.highestUnlockedLevel();
             std::string label = std::to_string(level);
             if (unlocked) label += "  [done]";
-            add({ x, y }, { 120, 120 }, label, Button::Style::Primary, [this, level]{
+            add({ x, y }, { 120, 120 }, label, Button::Style::Primary, [this, level] {
                 if (level <= prog_.highestUnlockedLevel())
                 {
                     ctx_.level = level;
                     setState(UIState::ClassicPlay);
                 }
-            }, unlocked);
+                }, unlocked);
         }
         break;
     }
 
     case UIState::Setting:
+    {
+        auto y = vstack(400, 1);
+        add(y(0), { BTN_W, BTN_H }, "Back", Button::Style::Subtle, [this] { handleBack(); });
         break;
+    }
 
     case UIState::Graphic:
+    {
+        auto y = vstack(240, 3);
+        add(y(0), { BTN_W, BTN_H }, "Character  ( < / > )", Button::Style::Subtle, [this] {
+            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+            sets_.save(cfg_);
+            });
+        add(y(1), { BTN_W, BTN_H }, "Background  ( < / > )", Button::Style::Subtle, [this] {
+            cfg_.cosmetic.backgroundId = std::min(7, cfg_.cosmetic.backgroundId + 1);
+            sets_.save(cfg_);
+            });
+        add(y(2), { BTN_W, BTN_H }, "Back", Button::Style::Subtle, [this] { handleBack(); });
         break;
+    }
 
     case UIState::LoadGame:
     {
         // First two buttons: tab selectors.
         add({ 200, 150 }, { 200, 48 }, loadTabModeIdx_ == 0 ? "[X] Classic" : "[ ] Classic",
-            Button::Style::Subtle, [this]{ loadTabModeIdx_ = 0; rebuildButtons(); });
+            Button::Style::Subtle, [this] { loadTabModeIdx_ = 0; rebuildButtons(); });
         add({ 420, 150 }, { 200, 48 }, loadTabModeIdx_ == 1 ? "[X] Endless" : "[ ] Endless",
-            Button::Style::Subtle, [this]{ loadTabModeIdx_ = 1; rebuildButtons(); });
-
+            Button::Style::Subtle, [this] { loadTabModeIdx_ = 1; rebuildButtons(); });
         const GameMode m = (loadTabModeIdx_ == 0) ? GameMode::Classic : GameMode::Endless;
         const auto slots = saves_.slots(m);
         for (int i = 0; i < SaveStore::kMaxSlots; ++i)
@@ -1055,29 +1158,43 @@ void UIManager::rebuildButtons()
             const float x = 200.f + (i % 3) * 280.f;
             const float y = 260.f;
             std::string label = "Slot " + std::to_string(i + 1) + "  (empty)";
-            if (i == 0 && slots[0].name.empty() == false)
+
+            // ĐỔI 0 THÀNH i ĐỂ HIỂN THỊ ĐÚNG DATA CỦA 3 SLOT
+            if (!slots[i].name.empty())
             {
-                label = "Slot " + std::to_string(i + 1) + ": " + slots[0].name
-                      + "  L"  + std::to_string(slots[0].level)
-                      + "  "   + std::to_string(slots[0].elapsedSec) + "s";
+                label = "Slot " + std::to_string(i + 1) + ": " + slots[i].name
+                    + "  L" + std::to_string(slots[i].level)
+                    + "  " + std::to_string(slots[i].elapsedSec) + "s";
             }
-            const bool filled = (i == 0 && !slots[0].name.empty());
-            add({ x, y }, { 240, 120 }, label, Button::Style::Primary, [this, m, i]{
+
+            // ĐỔI 0 THÀNH i ĐỂ MỞ KHÓA CLICK CHO CẢ 3 SLOT
+            const bool filled = !slots[i].name.empty();
+
+            add({ x, y }, { 240, 120 }, label, Button::Style::Primary, [this, m, i] {
                 const auto s2 = saves_.slots(m);
-                if (i == 0 && !s2[0].name.empty())
+                // ĐỔI 0 THÀNH i
+                if (!s2[i].name.empty())
                 {
-                    ctx_.pendingName  = s2[0].name;
-                    ctx_.level        = s2[0].level;
-                    ctx_.classicLevel = s2[0].level;
-                    ctx_.classicSec   = s2[0].elapsedSec;
+                    ctx_.pendingName = s2[i].name;
+                    ctx_.level = s2[i].level;
+                    ctx_.classicLevel = s2[i].level;
+                    ctx_.classicSec = s2[i].elapsedSec;
                     ctx_.mode = (m == GameMode::Endless)
-                              ? StateContext::Mode::Endless
-                              : StateContext::Mode::Classic;
+                        ? StateContext::Mode::Endless
+                        : StateContext::Mode::Classic;
+
+                    // Hàm này gọi resetGameplay(), đưa nhân vật về vạch xuất phát
                     setState(m == GameMode::Endless
-                             ? UIState::EndlessPlay
-                             : UIState::ClassicPlay);
+                        ? UIState::EndlessPlay
+                        : UIState::ClassicPlay);
+
+                    // NGAY SAU KHI SETSTATE, GHI ĐÈ LẠI TỌA ĐỘ VÀ THỜI GIAN ĐÃ LƯU
+                    playerWorldPos_.x = s2[i].playerX;
+                    playerWorldPos_.y = s2[i].playerY;
+                    cameraY_ = s2[i].cameraY;
+                    elapsedPlaySec_ = static_cast<float>(s2[i].elapsedSec);
                 }
-            }, filled);
+                }, filled);
         }
         break;
     }
@@ -1085,16 +1202,16 @@ void UIManager::rebuildButtons()
     case UIState::Ranking:
     {
         add({ 200, 150 }, { 200, 48 }, rankTabModeIdx_ == 0 ? "[X] Classic" : "[ ] Classic",
-            Button::Style::Subtle, [this]{ rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); });
+            Button::Style::Subtle, [this] { rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); });
         add({ 420, 150 }, { 200, 48 }, rankTabModeIdx_ == 1 ? "[X] Endless" : "[ ] Endless",
-            Button::Style::Subtle, [this]{ rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); });
+            Button::Style::Subtle, [this] { rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); });
         break;
     }
 
     case UIState::Help:
     {
-        add({ (UI_W - BTN_W)*0.5f, 600 }, { BTN_W, BTN_H }, "Back",
-            Button::Style::Subtle, [this]{ handleBack(); });
+        add({ (UI_W - BTN_W) * 0.5f, 600 }, { BTN_W, BTN_H }, "Back",
+            Button::Style::Subtle, [this] { handleBack(); });
         break;
     }
 
@@ -1459,8 +1576,10 @@ void UIManager::renderRanking()
     const float baseY = 240.f;
     const float rowH  = 36.f;
 
-    sf::Text header(font_, "  #   Name                 Lvl   Time    Score   Date",
-                    18);
+    std::string headerStr = (m == GameMode::Classic)
+        ? "  #   Name                 Lvl     Time"
+        : "  #   Name                 Time";
+    sf::Text header(font_, headerStr, 18);
     header.setFillColor(sf::Color(200, 200, 200));
     header.setPosition({ 220, baseY - 30 });
     win_.draw(header);
@@ -1468,14 +1587,24 @@ void UIManager::renderRanking()
     for (int i = rankScrollOffset_; i < end; ++i)
     {
         const auto& r = rows[i];
-        std::string line = "  " + std::to_string(i + 1) + ".  "
-                         + r.name;
-        // Pad name column to 20 chars.
+        std::string line = "  " + std::to_string(i + 1) + ".  " + r.name;
+
+        // Căn lề cột Name (khoảng 26 ký tự)
         while ((int)line.size() < 26) line += ' ';
-        line += "  " + std::to_string(r.level)
-              + "  "  + std::to_string(r.elapsedSec) + "s"
-              + "  "  + std::to_string(r.score)
-              + "  "  + std::to_string((long long)r.savedAtUnix);
+
+        if (m == GameMode::Classic) {
+            std::string lvlStr = std::to_string(r.level);
+            // Căn lề cột Lvl (khoảng 8 ký tự)
+            while ((int)lvlStr.size() < 8) lvlStr += ' ';
+            line += lvlStr + std::to_string(r.elapsedSec) + "s";
+        }
+        else {
+            // Chế độ Endless chỉ in thời gian sống
+            line += std::to_string(r.elapsedSec) + "s";
+        }
+
+        // (Đã xóa bỏ hoàn toàn phần in r.savedAtUnix ở đây)
+
         sf::Text row(font_, line, 20);
         row.setFillColor((i == rankScrollOffset_) ? colorFromHex(0xFFD24A) : sf::Color::White);
         row.setPosition({ 220, baseY + (i - rankScrollOffset_) * rowH });
@@ -1533,11 +1662,29 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 
     // Each block owns a 9-row lane layout. Entity systems can later spawn
     // vehicles/animals only on their matching LaneType rows.
-    sf::RectangleShape lane({Grid::MAP_WIDTH, Grid::CELL_SIZE});
+    sf::RectangleShape lane({ Grid::MAP_WIDTH, Grid::CELL_SIZE });
     for (int row = 0; row < LANES_PER_BLOCK; ++row) {
-        lane.setPosition({0.f, screenY + row * Grid::CELL_SIZE});
+        lane.setPosition({ 0.f, screenY + row * Grid::CELL_SIZE });
         lane.setFillColor(laneColor(block.lanes[row], block.biome));
         win_.draw(lane);
+
+        // ĐOẠN CODE CẦN THÊM VÀO ĐÂY: Vẽ nắp cống
+        if (block.manholeCols[row] != -1) {
+            int col = block.manholeCols[row];
+            if (Grid::isPlayableColumn(col)) {
+                sf::CircleShape manhole(Grid::CELL_SIZE * 0.35f);
+                manhole.setFillColor(sf::Color(60, 60, 60)); // Màu nắp cống xám đậm
+                manhole.setOutlineThickness(4.f);
+                manhole.setOutlineColor(sf::Color(30, 30, 30)); // Viền nắp cống
+                manhole.setOrigin({ manhole.getRadius(), manhole.getRadius() });
+
+                float cx = Grid::columnCenter(col);
+                float cy = screenY + (row + 0.5f) * Grid::CELL_SIZE;
+                manhole.setPosition({ cx, cy });
+
+                win_.draw(manhole);
+            }
+        }
     }
 
     // All 11 columns are rendered (and available to obstacle systems). Only
@@ -1627,7 +1774,6 @@ void UIManager::renderGameOver()
     }
     else
     {
-        drawCenteredText("Score: " + std::to_string(ctx_.endlessScore), 360, 22, sf::Color::White);
         drawCenteredText("Time:  " + std::to_string(ctx_.endlessSec) + "s", 390, 22, sf::Color::White);
     }
     drawCenteredText(classicWon_ ? "Enter to return to level select"
@@ -1640,3 +1786,4 @@ void UIManager::renderPause()
     drawCenteredText("PAUSED", 280, 56, sf::Color::White, true);
     drawCenteredText("Enter to resume   |   Esc to main menu", 360, 22, sf::Color(200, 200, 200));
 }
+

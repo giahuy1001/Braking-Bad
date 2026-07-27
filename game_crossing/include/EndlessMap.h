@@ -25,19 +25,26 @@ enum class LaneType : std::uint8_t {
 
 constexpr int LANES_PER_BLOCK = 9;
 std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
-                                                           bool isStartingBlock);
+    bool isStartingBlock);
+
+bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
+bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
 
 struct MapBlock {
-    std::uint32_t blockID{0};
-    BiomeType biome{BiomeType::Swamp};
-    float startY{0.f};
-    float endY{0.f};
+    std::uint32_t blockID{ 0 };
+    BiomeType biome{ BiomeType::Swamp };
+    float startY{ 0.f };
+    float endY{ 0.f };
     // Row 0 is the top row, row 8 is the bottom row of the block.
     std::array<LaneType, LANES_PER_BLOCK> lanes{};
+
+    std::array<int, LANES_PER_BLOCK> manholeCols = { -1, -1, -1, -1, -1, -1, -1, -1, -1 };
 
     float height() const { return endY - startY; }
     bool contains(float worldY) const { return worldY >= startY && worldY <= endY; }
 };
+
+bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
 
 class BiomeGenerator {
 public:
@@ -49,8 +56,8 @@ public:
 private:
     std::mt19937 m_rng;
     std::uniform_int_distribution<int> m_dist;
-    BiomeType m_lastBiome{BiomeType::COUNT};
-    int m_repeatCount{0};
+    BiomeType m_lastBiome{ BiomeType::COUNT };
+    int m_repeatCount{ 0 };
 };
 
 class EndlessMap {
@@ -73,7 +80,7 @@ private:
 
     std::deque<MapBlock> m_blocks;
     BiomeGenerator m_biomeGen;
-    std::uint32_t m_nextID{0};
-    float m_blockHeight{BLOCK_HEIGHT};
-    float m_nextEndY{0.f};
+    std::uint32_t m_nextID{ 0 };
+    float m_blockHeight{ BLOCK_HEIGHT };
+    float m_nextEndY{ 0.f };
 };

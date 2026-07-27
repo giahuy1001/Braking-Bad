@@ -1,4 +1,4 @@
-#include "persistence/SaveStore.h"
+﻿#include "persistence/SaveStore.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -38,8 +38,8 @@ SaveStore::slots(GameMode m) const
 
 void SaveStore::push(const RunRecord& r)
 {
-    auto& a   = arr(r.mode);
-    int& cnt  = countOf(r.mode);
+    auto& a = arr(r.mode);
+    int& cnt = countOf(r.mode);
     const int cap = kMaxSlots;
 
     if (cnt >= cap)
@@ -48,7 +48,7 @@ void SaveStore::push(const RunRecord& r)
         a[0] = a[1];
         a[1] = a[2];
         a[2] = r;
-        cnt  = cap;
+        cnt = cap;
     }
     else
     {
@@ -60,7 +60,7 @@ void SaveStore::push(const RunRecord& r)
 void SaveStore::clear(int slotIdx, GameMode m)
 {
     if (slotIdx < 0 || slotIdx >= kMaxSlots) return;
-    auto& a  = arr(m);
+    auto& a = arr(m);
     int& cnt = countOf(m);
     if (slotIdx >= cnt) return;
 
@@ -73,7 +73,7 @@ void SaveStore::clear(int slotIdx, GameMode m)
 
 void SaveStore::clearAll(GameMode m)
 {
-    auto& a  = arr(m);
+    auto& a = arr(m);
     int& cnt = countOf(m);
     for (int i = 0; i < cnt; ++i) a[i] = RunRecord{};
     cnt = 0;
@@ -84,10 +84,14 @@ std::string SaveStore::serialize(const RunRecord& r)
 {
     std::ostringstream os;
     os << r.name << '|'
-       << r.level << '|'
-       << r.elapsedSec << '|'
-       << r.score << '|'
-       << r.savedAtUnix;
+        << r.level << '|'
+        << r.elapsedSec << '|'
+        << r.score << '|'
+        << r.savedAtUnix << '|'
+        // Ghi thêm tọa độ
+        << r.playerX << '|'
+        << r.playerY << '|'
+        << r.cameraY;
     return os.str();
 }
 
@@ -98,6 +102,7 @@ bool SaveStore::deserialize(const std::string& line, RunRecord& out)
     int level = 0, elapsed = 0, score = 0;
     std::int64_t ts = 0;
     char bar;
+
     if (!std::getline(ss, name, '|')) return false;
     if (!(ss >> level))  return false;
     if (!(ss >> bar))    return false;
@@ -107,18 +112,26 @@ bool SaveStore::deserialize(const std::string& line, RunRecord& out)
     if (!(ss >> bar))    return false;
     if (!(ss >> ts))     return false;
 
-    out.name        = name;
-    out.level       = level;
-    out.elapsedSec  = elapsed;
-    out.score       = score;
+    // Đọc thêm tọa độ (dùng if để tránh lỗi nếu đọc nhầm file save cũ)
+    if (ss >> bar) {
+        if (!(ss >> out.playerX)) return false;
+        if (!(ss >> bar)) return false;
+        if (!(ss >> out.playerY)) return false;
+        if (!(ss >> bar)) return false;
+        if (!(ss >> out.cameraY)) return false;
+    }
+
+    out.name = name;
+    out.level = level;
+    out.elapsedSec = elapsed;
+    out.score = score;
     out.savedAtUnix = ts;
     return true;
 }
-
 void SaveStore::loadAll()
 {
     auto loadMode = [&](GameMode m) {
-        auto& a  = arr(m);
+        auto& a = arr(m);
         int& cnt = countOf(m);
         cnt = 0;
         std::ifstream in(pathFor(m));
@@ -133,7 +146,7 @@ void SaveStore::loadAll()
                 a[cnt++] = r;
             }
         }
-    };
+        };
     loadMode(GameMode::Classic);
     loadMode(GameMode::Endless);
 }
@@ -141,13 +154,13 @@ void SaveStore::loadAll()
 void SaveStore::saveAll() const
 {
     auto saveMode = [&](GameMode m) {
-        const auto& a  = (m == GameMode::Classic) ? classic_ : endless_;
-        const int   c  = (m == GameMode::Classic) ? classicCount_ : endlessCount_;
+        const auto& a = (m == GameMode::Classic) ? classic_ : endless_;
+        const int   c = (m == GameMode::Classic) ? classicCount_ : endlessCount_;
         std::ofstream out(pathFor(m), std::ios::trunc);
         if (!out.is_open()) return;
         for (int i = 0; i < c; ++i)
             out << serialize(a[i]) << '\n';
-    };
+        };
     saveMode(GameMode::Classic);
     saveMode(GameMode::Endless);
 }

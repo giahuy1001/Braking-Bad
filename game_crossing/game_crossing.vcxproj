@@ -133,10 +133,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="CGameObject.cpp" />
-    <ClCompile Include="CGameObstacle.cpp" />
     <ClCompile Include="src\Button.cpp" />
+    <ClCompile Include="src\CAnimal.cpp" />
+    <ClCompile Include="src\CGameObject.cpp" />
+    <ClCompile Include="src\CGameObstacle.cpp" />
     <ClCompile Include="src\CharacterRenderer.cpp" />
+    <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
     <ClCompile Include="src\persistence\SaveStore.cpp" />
@@ -146,11 +148,13 @@
     <ClCompile Include="game_crossing.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="CGameObject.h" />
-    <ClInclude Include="CGameObstacle.h" />
     <ClInclude Include="include\Button.h" />
+    <ClInclude Include="include\CAnimal.h" />
+    <ClInclude Include="include\CGameObject.h" />
+    <ClInclude Include="include\CGameObstacle.h" />
     <ClInclude Include="include\CharacterRenderer.h" />
     <ClInclude Include="include\ClassicMap.h" />
+    <ClInclude Include="include\CVehicle.h" />
     <ClInclude Include="include\EndlessMap.h" />
     <ClInclude Include="include\Grid.h" />
     <ClInclude Include="include\UIManager.h" />

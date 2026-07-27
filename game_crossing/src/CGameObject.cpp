@@ -1,4 +1,4 @@
-#include "CGameObject.h"
+#include "../include/CGameObject.h"
 
 CGameObject::CGameObject(float startX, float startY, float w, float h) {
     x = startX;

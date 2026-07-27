@@ -1,6 +1,8 @@
 #pragma once
 #include "CGameObstacle.h"
 
+float const defaultVehicleSpeed = 480.0f;
+
 class CVehicle : public CObstacle {
 private:
     bool isStopping;

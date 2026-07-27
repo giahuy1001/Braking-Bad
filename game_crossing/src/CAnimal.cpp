@@ -2,8 +2,8 @@
 
 // call the constructor of CObstacle to initialize position, size, and speed
 CAnimal::CAnimal(float startX, float startY, direction dir)
-    : CObstacle(startX, startY, 40.0f, 60.0f, 4.0f, dir) {
-}
+    : CObstacle(startX, startY, 40.0f, 60.0f, defaultAnimalSpeed, dir) //x, y, width, height, speed, dir
+{}
 
 // move function
 void CAnimal::move(float dt) {

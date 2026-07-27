@@ -1,5 +1,6 @@
 #pragma once
 #include "CGameObject.h"
+#include "Grid.h"
 
 enum direction
 {
@@ -13,11 +14,11 @@ protected:
 public:
     // recall constructor to reinitialize position, size, and speed
     CObstacle(float startX, float startY, float w, float h, float spd, direction dir)
-        : CGameObject(startX, startY, w, h), speed(spd), dir(dir) {
+        : CGameObject(startX, startY, w, h), speed{ spd }, dir{ dir } {
     }
 
     // virtual move function
-    virtual void move() = 0; 
+    virtual void move(float dt) = 0;
 
     direction getDirection() {
         return dir;
@@ -31,6 +32,5 @@ public:
         return y;
     }
 
-    // Update your virtual move function[cite: 16]
-    virtual void move(float dt) = 0;
+    bool isOffScreen() const;
 };

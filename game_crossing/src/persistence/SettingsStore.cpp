@@ -27,11 +27,16 @@ GameSettings SettingsStore::load() const
 
     std::stringstream ss(line);
     char bar;
-    if (!(ss >> s.volume))            return s;
-    if (!(ss >> bar))                 return s;
-    if (!(ss >> s.cosmetic.characterId))  return s;
-    if (!(ss >> bar))                 return s;
-    if (!(ss >> s.cosmetic.backgroundId)) return s;
+    if (!(ss >> s.volume >> bar)) return s;
+    // Accept old three-field files as SFX-only settings.
+    if (!(ss >> s.musicVolume >> bar)) {
+        s.musicVolume = s.volume;
+        ss.clear();
+        ss.str(line);
+        if (!(ss >> s.volume >> bar >> s.cosmetic.characterId >> bar >> s.cosmetic.backgroundId)) return s;
+        return s;
+    }
+    if (!(ss >> s.cosmetic.characterId >> bar >> s.cosmetic.backgroundId)) return s;
     return s;
 }
 
@@ -41,6 +46,7 @@ void SettingsStore::save(const GameSettings& s) const
     if (!out.is_open())
         return;
     out << s.volume << '|'
+        << s.musicVolume << '|'
         << s.cosmetic.characterId  << '|'
         << s.cosmetic.backgroundId << '\n';
 }

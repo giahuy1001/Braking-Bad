@@ -1,13 +1,56 @@
-﻿  CGameObject.cpp
-  CGameObstacle.cpp
-  Button.cpp
-  CharacterRenderer.cpp
-  EndlessMap.cpp
-  UIManager.cpp
-  SaveStore.cpp
-  RankingStore.cpp
-  SettingsStore.cpp
-  ProgressStore.cpp
-  game_crossing.cpp
-  Generating Code...
+﻿  UIManager.cpp
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,62): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(432,46): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,62): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(473,46): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,44): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244: 'argument': conversion from 'const T' to 'T', possible loss of data
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         with
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:             T=int
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         ]
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         and
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         [
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:             T=float
+D:\Download\OOP\Project\Braking-Bad\game_crossing\src\UIManager.cpp(1220,35): warning C4244:         ]
   game_crossing.vcxproj -> D:\Download\OOP\Project\Braking-Bad\x64\Debug\game_crossing.exe

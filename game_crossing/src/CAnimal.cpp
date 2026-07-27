@@ -1,21 +1,7 @@
 #include "../include/CAnimal.h"
 
 // call the constructor of CObstacle to initialize position, size, and speed
-CAnimal::CAnimal(float startX, float startY, direction dir)
-    : CObstacle(startX, startY, 40.0f, 60.0f, defaultAnimalSpeed, dir) //x, y, width, height, speed, dir
-{}
-
-// move function
-void CAnimal::move(float dt) {
-    if (dir == RIGHT)
-    {
-        x += speed * dt;
-        return;
-    }
-    x -= speed * dt;
-}
-
-void CAnimal::tell()
-{
-
+// Pass the parameters directly up to CObstacle
+CAnimal::CAnimal(float startX, float startY, float w, float h, float speed, direction dir)
+    : CObstacle(startX, startY, w, h, speed, dir) {
 }

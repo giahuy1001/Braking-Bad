@@ -1,11 +1,12 @@
 #include "../include/CGameObstacle.h"
 #include "../include/CVehicle.h"
 
-CVehicle::CVehicle(float startX, float startY, direction dir)
-    : CObstacle(startX, startY, 120.0f, 60.0f, defaultVehicleSpeed, dir), isStopping(false) //x, y, width, height, speed, dir
-{}
+// Pass the parameters directly up to CObstacle
+CVehicle::CVehicle(float startX, float startY, float w, float h, float speed, direction dir)
+    : CObstacle(startX, startY, w, h, speed, dir), isStopping(false) {
+}
 
-bool CVehicle::getStatus()
+bool CVehicle::getStoppingStatus()
 {
     if (isStopping == true)
         return true;
@@ -21,18 +22,4 @@ void CVehicle::stop()
 void CVehicle::continueMoving()
 {
     isStopping = false;
-}
-
-void CVehicle::move(float dt)
-{
-    if (isStopping) {
-        return;
-    }
-
-    if (dir == RIGHT)
-    {
-        x += speed * dt;
-        return;
-    }
-    x -= speed * dt;
 }

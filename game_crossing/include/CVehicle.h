@@ -1,15 +1,13 @@
 #pragma once
 #include "CGameObstacle.h"
 
-float const defaultVehicleSpeed = 480.0f;
-
 class CVehicle : public CObstacle {
 private:
     bool isStopping;
 public:
-    CVehicle(float startX, float startY, direction dir);
-    bool getStatus();
+    CVehicle(float startX, float startY, float w, float h, float speed, direction dir);
+    bool getStoppingStatus();
     void stop();
     void continueMoving();
-    void move(float dt) override;
+    virtual void move(float dt) override = 0;
 };

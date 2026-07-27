@@ -133,11 +133,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\CDeer.cpp" />
+    <ClCompile Include="src\CCat.cpp" />
     <ClCompile Include="src\Button.cpp" />
     <ClCompile Include="src\CAnimal.cpp" />
+    <ClCompile Include="src\CCar.cpp" />
     <ClCompile Include="src\CGameObject.cpp" />
     <ClCompile Include="src\CGameObstacle.cpp" />
     <ClCompile Include="src\CharacterRenderer.cpp" />
+    <ClCompile Include="src\CTruck.cpp" />
     <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
@@ -148,12 +152,16 @@
     <ClCompile Include="game_crossing.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\CDeer.h" />
+    <ClInclude Include="include\CCat.h" />
     <ClInclude Include="include\Button.h" />
     <ClInclude Include="include\CAnimal.h" />
+    <ClInclude Include="include\CCar.h" />
     <ClInclude Include="include\CGameObject.h" />
     <ClInclude Include="include\CGameObstacle.h" />
     <ClInclude Include="include\CharacterRenderer.h" />
     <ClInclude Include="include\ClassicMap.h" />
+    <ClInclude Include="include\CTruck.h" />
     <ClInclude Include="include\CVehicle.h" />
     <ClInclude Include="include\EndlessMap.h" />
     <ClInclude Include="include\Grid.h" />

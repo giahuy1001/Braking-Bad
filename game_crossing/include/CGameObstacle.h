@@ -10,6 +10,7 @@ enum direction
 class CObstacle : public CGameObject {
 protected:
     float speed;
+    float speedMultiplier = 1.0f;
     direction dir;
 public:
     // recall constructor to reinitialize position, size, and speed
@@ -30,6 +31,10 @@ public:
 
     float getY() {
         return y;
+    }
+
+    void setSpeedMultiplier(float mult) {
+        speedMultiplier = mult;
     }
 
     bool isOffScreen() const;

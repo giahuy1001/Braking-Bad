@@ -1,6 +1,8 @@
 #include "UIManager.h"
-#include "CAnimal.h"
-#include "CVehicle.h"
+#include "CCar.h"
+#include "CTruck.h"
+#include "CCat.h"
+#include "CDeer.h"
 #include "Grid.h"
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -855,6 +857,20 @@ void UIManager::update(float dt)
     if (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay) {
         if (gameplayStarted_) {
 
+            //Endless mode speed scaling
+            float currentMultiplier = 1.0f;
+            if (state_ == UIState::EndlessPlay) {
+                // Calculate how far the player has traveled upward (Y starts at -1080 and goes more negative)
+                float distanceTraveled = std::abs(playerWorldPos_.y + 1080.0f);
+
+                if (distanceTraveled > 15000.f) {
+                    currentMultiplier = 2.0f; // Level 3 speed
+                }
+                else if (distanceTraveled > 5000.f) {
+                    currentMultiplier = 1.5f; // Level 2 speed
+                }
+            }
+
             // 1. Move all obstacles first
             for (auto obs : Obstacles) {
                 obs->move(dt);
@@ -900,8 +916,8 @@ void UIManager::update(float dt)
                                 for (auto obs : Obstacles) {
                                     // If they are in the exact same lane...
                                     if (std::abs(obs->getY() - rowY) < 1.0f) {
-                                        // And they are too close to the spawn point (within 250 pixels)
-                                        if (std::abs(obs->getX() - spawnX) < 250.f) {
+                                        // Increased the buffer to 400 pixels to ensure plenty of space
+                                        if (std::abs(obs->getX() - spawnX) < 400.f) {
                                             isBlocked = true;
                                             break;
                                         }
@@ -911,10 +927,22 @@ void UIManager::update(float dt)
                                 // 3. Spawn only if the road is clear!
                                 if (!isBlocked) {
                                     if (type == LaneType::Vehicle) {
-                                        Obstacles.push_back(new CVehicle(spawnX, rowY, dir));
+                                        // Even rows are FAST lanes (Cars only), Odd rows are SLOW lanes (Trucks only)
+                                        if (row % 2 == 0) {
+                                            Obstacles.push_back(new CCar(spawnX, rowY, dir));
+                                        }
+                                        else {
+                                            Obstacles.push_back(new CTruck(spawnX, rowY, dir));
+                                        }
                                     }
                                     else if (type == LaneType::Animal) {
-                                        Obstacles.push_back(new CAnimal(spawnX, rowY, dir));
+                                        // Even rows are CAT lanes, Odd rows are DEER lanes
+                                        if (row % 2 == 0) {
+                                            Obstacles.push_back(new CCat(spawnX, rowY, dir));
+                                        }
+                                        else {
+                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                        }
                                     }
                                 }
                             }

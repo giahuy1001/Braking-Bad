@@ -1882,4 +1882,3 @@ void UIManager::renderPause()
     drawCenteredText("PAUSED", 280, 56, sf::Color::White, true);
     drawCenteredText("Enter to resume   |   Esc to main menu", 360, 22, sf::Color(200, 200, 200));
 }
-

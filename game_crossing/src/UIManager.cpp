@@ -37,13 +37,11 @@ namespace
     constexpr float         BACK_Y     = PADDING;
     constexpr int           NAME_MAX   = 16;
     constexpr int           CLASSIC_LEVELS = 10;
-    constexpr float         PLAYER_STEP = Grid::CELL_SIZE;
     constexpr float         ENDLESS_SCROLL_SPEED = 180.f; // px/s, world Y decreases
     constexpr float         ENDLESS_CATCHUP_SPEED = 1500.f;
     constexpr float         CLASSIC_FOLLOW_SPEED = 960.f;  // px/s, catches up to player
     constexpr float         PLAYER_SCREEN_ANCHOR = Grid::MAP_HEIGHT * 0.65f;
     constexpr float         PLAYER_TOP_SAFE_LINE = 180.f;
-    constexpr float         PLAYER_RADIUS = 42.f;
     constexpr float         ENDLESS_CATCHUP_DISTANCE = Grid::CELL_SIZE * 4.f;
 
     sf::Color colorFromHex(unsigned int rgb)
@@ -592,11 +590,14 @@ void UIManager::handlePlay(const sf::Event& e)
     {
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
 
-        sf::Vector2f next = playerWorldPos_;
         const bool isMove = k->code == sf::Keyboard::Key::Left ||
                             k->code == sf::Keyboard::Key::Right ||
                             k->code == sf::Keyboard::Key::Up ||
-                            k->code == sf::Keyboard::Key::Down;
+                            k->code == sf::Keyboard::Key::Down ||
+                            k->code == sf::Keyboard::Key::A ||
+                            k->code == sf::Keyboard::Key::D ||
+                            k->code == sf::Keyboard::Key::W ||
+                            k->code == sf::Keyboard::Key::S;
         if (!isMove) return;
 
         // Once the player is fully below the viewport, ignore every movement
@@ -607,20 +608,12 @@ void UIManager::handlePlay(const sf::Event& e)
             return;
         }
 
-        // The first directional input starts both clock and camera. World
-        // position itself is only changed below, never by camera updates.
+        // The first directional input starts both clock and camera.
         gameplayStarted_ = true;
-        if (k->code == sf::Keyboard::Key::Left)  next.x -= PLAYER_STEP;
-        if (k->code == sf::Keyboard::Key::Right) next.x += PLAYER_STEP;
-        if (k->code == sf::Keyboard::Key::Up)    next.y -= PLAYER_STEP;
-        if (k->code == sf::Keyboard::Key::Down)  next.y += PLAYER_STEP;
-
-        // Columns 0-1 and 9-10 remain obstacle-only lanes.
-        next.x = std::clamp(next.x, Grid::playableLeftCenter(), Grid::playableRightCenter());
 
         const float topLimit = state_ == UIState::ClassicPlay
             ? classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f
-            : -std::numeric_limits<float>::infinity();
+            : std::numeric_limits<float>::lowest() / 4.f;
         const float mapBottom = state_ == UIState::ClassicPlay
             ? classicMap_.bottomLimit() - Grid::CELL_SIZE * 0.5f
             : -Grid::CELL_SIZE * 0.5f;
@@ -628,24 +621,24 @@ void UIManager::handlePlay(const sf::Event& e)
         // therefore prevents stepping into a partially clipped bottom tile.
         const float minY = topLimit;
         const float maxY = std::min(mapBottom, maxWalkablePlayerY());
-        const bool verticalMove = k->code == sf::Keyboard::Key::Up ||
-                                  k->code == sf::Keyboard::Key::Down;
-        // Reject invalid vertical movement instead of snapping the player's
-        // current row to maxY; this removes the off-screen teleport.
-        if (verticalMove && next.y >= minY && next.y <= maxY)
-            playerWorldPos_.y = next.y;
-        playerWorldPos_.x = next.x;
+        // CPlayer owns grid stepping, horizontal clamping, and rejection of
+        // invalid vertical moves. Its bounds retain the exact map/view math.
+        player_.setMovementBounds({ { Grid::playableLeftCenter(), minY },
+                                    { Grid::playableRightCenter() - Grid::playableLeftCenter(),
+                                      maxY - minY } });
+        player_.handleInput(k->code);
+        const sf::Vector2f playerPosition = player_.getPosition();
 
         // ĐOẠN CODE CẦN THÊM: Kiểm tra xem người chơi có đạp trúng nắp cống không
-        int playerCol = static_cast<int>(playerWorldPos_.x / Grid::CELL_SIZE);
+        int playerCol = static_cast<int>(playerPosition.x / Grid::CELL_SIZE);
         bool steppedOnManhole = false;
 
         auto checkManhole = [&](const auto& mapBlocks) {
             for (const auto& block : mapBlocks) {
                 // Kiểm tra xem người chơi đang đứng trong block (bản đồ) nào
-                if (block.contains(playerWorldPos_.y)) {
+                if (block.contains(playerPosition.y)) {
                     // Tính toán xem đang đứng ở hàng (row) thứ mấy trong block đó
-                    int row = static_cast<int>((playerWorldPos_.y - block.startY) / Grid::CELL_SIZE);
+                    int row = static_cast<int>((playerPosition.y - block.startY) / Grid::CELL_SIZE);
                     if (row >= 0 && row < LANES_PER_BLOCK) {
                         // Nếu vị trí cột của người chơi trùng với cột có nắp cống (-1 là không có)
                         if (block.manholeCols[row] == playerCol) {
@@ -667,6 +660,7 @@ void UIManager::handlePlay(const sf::Event& e)
 
         // Xử lý GameOver nếu đạp trúng nắp cống
         if (steppedOnManhole) {
+            player_.kill();
             if (state_ == UIState::EndlessPlay) {
                 finishEndlessRun();
             }
@@ -681,7 +675,7 @@ void UIManager::handlePlay(const sf::Event& e)
 
         // The centre of the final block's top row is the Classic finish tile.
         if (state_ == UIState::ClassicPlay &&
-            playerWorldPos_.y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
+            player_.getPosition().y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
         {
             classicWon_ = true;
             ctx_.classicLevel = ctx_.level;
@@ -766,8 +760,8 @@ void UIManager::handlePause(const sf::Event& e)
             r.savedAtUnix = nowUnix();
 
             // Lưu chính xác tọa độ
-            r.playerX = playerWorldPos_.x;
-            r.playerY = playerWorldPos_.y;
+            r.playerX = player_.getPosition().x;
+            r.playerY = player_.getPosition().y;
             r.cameraY = cameraY_;
 
             // Đẩy vào slot mới nhất
@@ -842,6 +836,8 @@ void UIManager::update(float dt)
     {
         elapsedPlaySec_ += dt;
         updateCamera(dt);
+        player_.setCameraOffset(cameraY_);
+        player_.update(dt);
     }
 
     if (gameplayStarted_ && state_ == UIState::EndlessPlay)
@@ -861,7 +857,7 @@ void UIManager::update(float dt)
             float currentMultiplier = 1.0f;
             if (state_ == UIState::EndlessPlay) {
                 // Calculate how far the player has traveled upward (Y starts at -1080 and goes more negative)
-                float distanceTraveled = std::abs(playerWorldPos_.y + 1080.0f);
+                float distanceTraveled = std::abs(player_.getPosition().y + 1080.0f);
 
                 if (distanceTraveled > 15000.f) {
                     currentMultiplier = 2.0f; // Level 3 speed
@@ -984,7 +980,10 @@ void UIManager::setState(UIState s)
 void UIManager::resetGameplay()
 {
     cameraY_ = -Grid::MAP_HEIGHT;
-    playerWorldPos_ = { Grid::columnCenter(Grid::COLUMNS / 2), -Grid::CELL_SIZE * 0.5f };
+    player_.setSpawnPosition({ Grid::columnCenter(Grid::COLUMNS / 2), -Grid::CELL_SIZE * 0.5f });
+    player_.setSkin(ctx_.selectedCharacterID);
+    player_.resetPosition();
+    player_.setCameraOffset(cameraY_);
     elapsedPlaySec_ = 0.f;
     gameplayStarted_ = false;
     classicWon_ = false;
@@ -1013,12 +1012,13 @@ float UIManager::maxWalkablePlayerY() const
 
 bool UIManager::isEndlessPlayerOffscreen() const
 {
-    return playerWorldPos_.y - cameraY_ - PLAYER_RADIUS > Grid::MAP_HEIGHT;
+    return player_.getPosition().y - cameraY_ - player_.getBounds().size.y * 0.5f > Grid::MAP_HEIGHT;
 }
 
 void UIManager::finishEndlessRun()
 {
     if (state_ != UIState::EndlessPlay) return;
+    player_.kill();
     // Capture result before any future resetGameplay()/EndlessMap::reset().
     ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
     setState(UIState::GameOver);
@@ -1033,15 +1033,15 @@ void UIManager::updateCamera(float dt)
 
         // When a fast player approaches the top 3-4 rows, smoothly move the
         // camera farther up to restore the normal player anchor. This is a
-        // catch-up, not a change to playerWorldPos_.
-        const float playerScreenY = playerWorldPos_.y - cameraY_;
+        // catch-up, not a change to the player's world position.
+        const float playerScreenY = player_.getPosition().y - cameraY_;
         if (playerScreenY < ENDLESS_CATCHUP_DISTANCE)
         {
-            const float targetY = playerWorldPos_.y - PLAYER_SCREEN_ANCHOR;
+            const float targetY = player_.getPosition().y - PLAYER_SCREEN_ANCHOR;
             if (targetY < cameraY_)
                 cameraY_ = std::max(targetY, cameraY_ - ENDLESS_CATCHUP_SPEED * dt);
 
-            const float safeCameraY = playerWorldPos_.y - PLAYER_TOP_SAFE_LINE;
+            const float safeCameraY = player_.getPosition().y - PLAYER_TOP_SAFE_LINE;
             if (cameraY_ > safeCameraY)
                 cameraY_ = safeCameraY;
         }
@@ -1052,13 +1052,13 @@ void UIManager::updateCamera(float dt)
     // becomes the camera's immutable stop: that final 1080px block is fully
     // visible and remains so for the rest of the level.
     const float stopY = classicMap_.topLimit();
-    const float targetY = std::max(stopY, playerWorldPos_.y - PLAYER_SCREEN_ANCHOR);
+    const float targetY = std::max(stopY, player_.getPosition().y - PLAYER_SCREEN_ANCHOR);
     if (targetY < cameraY_)
         cameraY_ = std::max(targetY, cameraY_ - CLASSIC_FOLLOW_SPEED * dt);
 
     // A rapid sequence of player moves cannot let the player leave through
     // the top while the smoothed camera is catching up.
-    const float safeCameraY = std::max(stopY, playerWorldPos_.y - PLAYER_TOP_SAFE_LINE);
+    const float safeCameraY = std::max(stopY, player_.getPosition().y - PLAYER_TOP_SAFE_LINE);
     if (cameraY_ > safeCameraY)
         cameraY_ = safeCameraY;
 }
@@ -1308,9 +1308,10 @@ void UIManager::rebuildButtons()
                         : UIState::ClassicPlay);
 
                     // NGAY SAU KHI SETSTATE, GHI ĐÈ LẠI TỌA ĐỘ VÀ THỜI GIAN ĐÃ LƯU
-                    playerWorldPos_.x = s2[i].playerX;
-                    playerWorldPos_.y = s2[i].playerY;
+                    player_.setPosition({ s2[i].playerX, s2[i].playerY });
+                    player_.revive();
                     cameraY_ = s2[i].cameraY;
+                    player_.setCameraOffset(cameraY_);
                     elapsedPlaySec_ = static_cast<float>(s2[i].elapsedSec);
                 }
                 }, filled);
@@ -1834,8 +1835,7 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 
 void UIManager::drawPlayer()
 {
-    CharacterRenderer::draw(win_, ctx_.selectedCharacterID,
-                            {playerWorldPos_.x, playerWorldPos_.y - cameraY_}, PLAYER_RADIUS);
+    player_.render(win_);
 }
 
 void UIManager::renderPlay()

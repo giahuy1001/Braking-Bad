@@ -141,6 +141,7 @@
     <ClCompile Include="src\CGameObject.cpp" />
     <ClCompile Include="src\CGameObstacle.cpp" />
     <ClCompile Include="src\CharacterRenderer.cpp" />
+    <ClCompile Include="src\CPlayer.cpp" />
     <ClCompile Include="src\CTruck.cpp" />
     <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
@@ -160,6 +161,7 @@
     <ClInclude Include="include\CGameObject.h" />
     <ClInclude Include="include\CGameObstacle.h" />
     <ClInclude Include="include\CharacterRenderer.h" />
+    <ClInclude Include="include\CPlayer.h" />
     <ClInclude Include="include\ClassicMap.h" />
     <ClInclude Include="include\CTruck.h" />
     <ClInclude Include="include\CVehicle.h" />

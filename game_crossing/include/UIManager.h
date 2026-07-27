@@ -6,6 +6,7 @@
 #include "EndlessMap.h"
 #include "ClassicMap.h"
 #include "CharacterRenderer.h"
+#include "CPlayer.h"
 #include "CGameObstacle.h"
 #include "persistence/SaveStore.h"
 #include "persistence/RankingStore.h"
@@ -164,7 +165,7 @@ private:
     std::vector<CObstacle*> Obstacles;
     float obstacleSpawnTimer_ = 0.f;
     float cameraY_ = -1080.f;
-    sf::Vector2f playerWorldPos_;
+    CPlayer player_;
     float elapsedPlaySec_ = 0.f;
     bool gameplayStarted_ = false; // timer/camera remain paused until first move
     bool classicWon_ = false;

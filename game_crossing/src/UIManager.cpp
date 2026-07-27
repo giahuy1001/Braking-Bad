@@ -1,4 +1,6 @@
 #include "UIManager.h"
+#include "CAnimal.h"
+#include "CVehicle.h"
 #include "Grid.h"
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -785,6 +787,88 @@ void UIManager::update(float dt)
         if (isEndlessPlayerOffscreen())
             finishEndlessRun();
     }
+
+    // Update obstacles only during active gameplay states
+    if (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay) {
+        if (gameplayStarted_) {
+
+            // 1. Move all obstacles first
+            for (auto obs : Obstacles) {
+                obs->move(dt);
+            }
+
+            // 2. Clean up off-screen obstacles safely using an Iterator
+            for (auto it = Obstacles.begin(); it != Obstacles.end(); ) {
+                if ((*it)->isOffScreen()) {
+                    delete* it;
+                    it = Obstacles.erase(it);
+                }
+                else {
+                    ++it;
+                }
+            }
+
+            // 3. THE SPAWNER
+            obstacleSpawnTimer_ -= dt;
+            if (obstacleSpawnTimer_ <= 0.f) {
+                obstacleSpawnTimer_ = 0.6f; // Spawn slightly faster for more traffic
+
+                // Helper lambda to scan map blocks and spawn obstacles
+                auto spawnInBlocks = [&](const auto& blocks) {
+                    for (const MapBlock& block : blocks) {
+
+                        for (int row = 0; row < LANES_PER_BLOCK; ++row) {
+                            LaneType type = block.lanes[row];
+
+                            // We only spawn in Vehicle and Animal lanes
+                            if (type == LaneType::Safe) continue;
+
+                            // 1. FIX THE DIRECTION: Alternate direction based on the row and block ID!
+                            direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
+
+                            // 50% chance to attempt a spawn in this lane
+                            if (rand() % 100 < 50) {
+
+                                float rowY = block.startY + (row * Grid::CELL_SIZE);
+                                float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
+
+                                // 2. FIX THE OVERLAPPING: Check if the spawn point is currently blocked
+                                bool isBlocked = false;
+                                for (auto obs : Obstacles) {
+                                    // If they are in the exact same lane...
+                                    if (std::abs(obs->getY() - rowY) < 1.0f) {
+                                        // And they are too close to the spawn point (within 250 pixels)
+                                        if (std::abs(obs->getX() - spawnX) < 250.f) {
+                                            isBlocked = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 3. Spawn only if the road is clear!
+                                if (!isBlocked) {
+                                    if (type == LaneType::Vehicle) {
+                                        Obstacles.push_back(new CVehicle(spawnX, rowY, dir));
+                                    }
+                                    else if (type == LaneType::Animal) {
+                                        Obstacles.push_back(new CAnimal(spawnX, rowY, dir));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    };
+
+                // Run the spawner on the correct map data
+                if (state_ == UIState::EndlessPlay) {
+                    spawnInBlocks(endlessMap_.getBlocks());
+                }
+                else {
+                    spawnInBlocks(classicMap_.getBlocks());
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -818,6 +902,13 @@ void UIManager::resetGameplay()
         endlessMap_.reset();
     else
         classicMap_.init(std::clamp(ctx_.level, 1, CLASSIC_LEVELS));
+
+    // Clean up any old test obstacles
+    for (auto obs : Obstacles) {
+        delete obs;
+    }
+    Obstacles.clear();
+    obstacleSpawnTimer_ = 0.f; // Reset the timer when a new game starts   
 }
 
 float UIManager::maxWalkablePlayerY() const
@@ -1580,6 +1671,11 @@ void UIManager::renderPlay()
         for (const MapBlock& block : classicMap_.getBlocks())
             drawMapBlock(block, cameraY_);
     }
+    // Draw the test obstacles with camera offset
+    for (auto obs : Obstacles) {
+        obs->draw(win_, cameraY_);
+    }
+
     drawPlayer();
 
     // Dedicated, 600px gameplay sidebar.

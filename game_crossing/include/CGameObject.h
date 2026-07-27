@@ -17,5 +17,5 @@ public:
     //destructor
     virtual ~CGameObject();
 
-    virtual void draw(sf::RenderWindow& window);
+    virtual void draw(sf::RenderWindow& window, float cameraY);
 };

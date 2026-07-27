@@ -6,6 +6,7 @@
 #include "EndlessMap.h"
 #include "ClassicMap.h"
 #include "CharacterRenderer.h"
+#include "CGameObstacle.h"
 #include "persistence/SaveStore.h"
 #include "persistence/RankingStore.h"
 #include "persistence/ProgressStore.h"
@@ -147,6 +148,8 @@ private:
     // Gameplay world state. World Y decreases while moving toward the top.
     EndlessMap endlessMap_;
     ClassicMap classicMap_;
+    std::vector<CObstacle*> Obstacles;
+    float obstacleSpawnTimer_ = 0.f;
     float cameraY_ = -1080.f;
     sf::Vector2f playerWorldPos_;
     float elapsedPlaySec_ = 0.f;

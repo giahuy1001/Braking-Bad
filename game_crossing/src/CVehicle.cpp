@@ -2,8 +2,8 @@
 #include "../include/CVehicle.h"
 
 CVehicle::CVehicle(float startX, float startY, direction dir)
-    : CObstacle(startX, startY, 120.0f, 60.0f, 8.0f, dir), isStopping(false) {
-}
+    : CObstacle(startX, startY, 120.0f, 60.0f, defaultVehicleSpeed, dir), isStopping(false) //x, y, width, height, speed, dir
+{}
 
 bool CVehicle::getStatus()
 {
@@ -25,7 +25,6 @@ void CVehicle::continueMoving()
 
 void CVehicle::move(float dt)
 {
-    // If the vehicle is supposed to be stopped, exit the function immediately!
     if (isStopping) {
         return;
     }

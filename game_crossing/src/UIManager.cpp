@@ -72,7 +72,7 @@ namespace
 const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
     // Right-side vertical menu: Play, Load, Graphic, Setting.
     sf::FloatRect({ 1416.f, 410.f }, { 314.f, 105.f }),
-    sf::FloatRect({ 1416.f, 540.f }, { 314.f, 105.f }),
+    sf::FloatRect({ 1416.f, 534.f }, { 314.f, 105.f }),
     sf::FloatRect({ 1416.f, 656.f }, { 314.f, 105.f }),
     sf::FloatRect({ 1416.f, 781.f }, { 314.f, 105.f }),
     // Bottom-right round icons: Leaderboard, Help, Exit.
@@ -80,6 +80,21 @@ const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
     sf::FloatRect({ 1684.f, 980.f }, { 94.f, 94.f }),
     sf::FloatRect({ 1807.f, 980.f }, { 94.f, 94.f })
 };
+
+const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
+const sf::FloatRect UIManager::kCharacterPanelBounds({107.f, 409.f}, {351.f, 347.f});
+const sf::FloatRect UIManager::kCharacterPrevBounds ({89.f, 562.f}, {43.f, 43.f});
+const sf::FloatRect UIManager::kCharacterNextBounds ({433.f, 562.f}, {43.f, 43.f});
+const sf::FloatRect UIManager::kThemePanelBounds    ({1414.f, 409.f}, {351.f, 347.f});
+const sf::FloatRect UIManager::kThemePrevBounds     ({1396.f, 562.f}, {43.f, 43.f});
+const sf::FloatRect UIManager::kThemeNextBounds     ({1740.f, 562.f}, {43.f, 43.f});
+const sf::FloatRect UIManager::kSfxTrackBounds      ({1200.f, 380.f}, {400.f, 20.f});
+const sf::FloatRect UIManager::kSfxDecBounds        ({1130.f, 365.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kSfxIncBounds        ({1620.f, 365.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kMusicTrackBounds    ({1200.f, 480.f}, {400.f, 20.f});
+const sf::FloatRect UIManager::kMusicDecBounds      ({1130.f, 465.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kMusicIncBounds      ({1620.f, 465.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86.f});
 
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
@@ -114,9 +129,12 @@ UIManager::UIManager(sf::RenderWindow& window)
     const bool lg  = logoTex_.loadFromFile("Graphic/1x/DataList.png");
     (void)        iconsTex_.loadFromFile("Graphic/1x/DataList.png");
     (void)lg; // The seasonal backgrounds are the only required UI images.
-    setTheme("autumn");
+    setTheme("spring");
 
     cfg_ = sets_.load();
+    cfg_.volume = std::clamp(cfg_.volume, 0, 100);
+    cfg_.musicVolume = std::clamp(cfg_.musicVolume, 0, 100);
+    applyAudioVolumes();
     cfg_.cosmetic.characterId = std::clamp(cfg_.cosmetic.characterId, 1,
                                            CharacterRenderer::kCharacterCount);
     ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
@@ -404,44 +422,30 @@ void UIManager::handleSetting(const sf::Event& e)
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter)  { activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Up)     { moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Down)   { moveFocus(+1); return; }
-        if (k->code == sf::Keyboard::Key::Left)   { cfg_.volume = std::max(0,   cfg_.volume - 5); sets_.save(cfg_); return; }
-        if (k->code == sf::Keyboard::Key::Right)  { cfg_.volume = std::min(100, cfg_.volume + 5); sets_.save(cfg_); return; }
+        if (k->code == sf::Keyboard::Key::Left)  { cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
+        if (k->code == sf::Keyboard::Key::Right) { cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            for (int i = 0; i < (int)btns_.size(); ++i)
-            {
-                if (btns_[i].consumeClick(mp)) { focusIdx_ = i; activateFocused(); return; }
-            }
-            // Click on the slider track to jump volume.
-            sf::FloatRect track({ 500, 200 }, { 600, 40 });
-            const sf::Vector2f uiMp = toUiCoords(mm->position);
-            if (track.contains(uiMp))
-            {
-                float t = (uiMp.x - track.position.x) / track.size.x;
-                cfg_.volume = std::clamp(static_cast<int>(t * 100.f), 0, 100);
-                sets_.save(cfg_);
-            }
+            const sf::Vector2f p(mm->position.x, mm->position.y);
+            if (scaledBaseRect(kSettingOkBounds).contains(p)) { sets_.save(cfg_); setState(UIState::MainMenu); return; }
+            if (scaledBaseRect(kSfxDecBounds).contains(p)) { cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kSfxIncBounds).contains(p)) { cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kMusicDecBounds).contains(p)) { cfg_.musicVolume = std::max(0, cfg_.musicVolume - 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kMusicIncBounds).contains(p)) { cfg_.musicVolume = std::min(100, cfg_.musicVolume + 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kSfxTrackBounds).contains(p)) { draggingSfx_ = true; setSfxVolumeFromMouse(mm->position); return; }
+            if (scaledBaseRect(kMusicTrackBounds).contains(p)) { draggingMusic_ = true; setMusicVolumeFromMouse(mm->position); return; }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
-        }
+        if (draggingSfx_) setSfxVolumeFromMouse(mm->position);
+        if (draggingMusic_) setMusicVolumeFromMouse(mm->position);
     }
+    if (e.is<sf::Event::MouseButtonReleased>()) { draggingSfx_ = draggingMusic_ = false; }
 }
 
 void UIManager::handleGraphic(const sf::Event& e)
@@ -449,27 +453,16 @@ void UIManager::handleGraphic(const sf::Event& e)
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter)  { activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Up)     { moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Down)   { moveFocus(+1); return; }
         if (k->code == sf::Keyboard::Key::Left)
         {
-            if (focusIdx_ == 0) {
-                cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1);
-                ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-                sets_.save(cfg_);
-            }
-            if (focusIdx_ == 1) { cfg_.cosmetic.backgroundId = std::max(0, cfg_.cosmetic.backgroundId - 1); sets_.save(cfg_); }
+            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1);
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             return;
         }
         if (k->code == sf::Keyboard::Key::Right)
         {
-            if (focusIdx_ == 0) {
-                cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
-                ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-                sets_.save(cfg_);
-            }
-            if (focusIdx_ == 1) { cfg_.cosmetic.backgroundId = std::min(7, cfg_.cosmetic.backgroundId + 1); sets_.save(cfg_); }
+            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
+            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             return;
         }
     }
@@ -477,23 +470,11 @@ void UIManager::handleGraphic(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            for (int i = 0; i < (int)btns_.size(); ++i)
-            {
-                if (btns_[i].consumeClick(mp)) { focusIdx_ = i; activateFocused(); return; }
-            }
-        }
-    }
-    if (e.is<sf::Event::MouseMoved>())
-    {
-        const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            const sf::Vector2f p(mm->position.x, mm->position.y);
+            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (scaledBaseRect(kThemePrevBounds).contains(p)) { currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            if (scaledBaseRect(kThemeNextBounds).contains(p)) { currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
         }
     }
 }
@@ -896,12 +877,40 @@ sf::Vector2f UIManager::toBaseCoords(sf::Vector2i pixel) const
 
 sf::FloatRect UIManager::scaledMenuBounds(std::size_t index) const
 {
+    return scaledBaseRect(kMainMenuButtonBounds.at(index));
+}
+
+sf::FloatRect UIManager::scaledBaseRect(const sf::FloatRect& base) const
+{
     const sf::Vector2u size = win_.getSize();
-    const sf::FloatRect base = kMainMenuButtonBounds.at(index);
     const float sx = size.x / static_cast<float>(WINDOW_W);
     const float sy = size.y / static_cast<float>(WINDOW_H);
     return { { base.position.x * sx, base.position.y * sy },
              { base.size.x * sx, base.size.y * sy } };
+}
+
+void UIManager::setSfxVolumeFromMouse(sf::Vector2i pixel)
+{
+    const sf::FloatRect track = scaledBaseRect(kSfxTrackBounds);
+    const float ratio = (pixel.x - track.position.x) / track.size.x;
+    cfg_.volume = std::clamp(static_cast<int>(std::lround(ratio * 100.f)), 0, 100);
+    applyAudioVolumes();
+}
+
+void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
+{
+    const sf::FloatRect track = scaledBaseRect(kMusicTrackBounds);
+    const float ratio = (pixel.x - track.position.x) / track.size.x;
+    cfg_.musicVolume = std::clamp(static_cast<int>(std::lround(ratio * 100.f)), 0, 100);
+    applyAudioVolumes();
+}
+
+void UIManager::applyAudioVolumes()
+{
+    // This project does not yet contain an AudioManager. Keep this single
+    // integration point: once it exists, call setSfxVolume(cfg_.volume) and
+    // setMusicVolume(cfg_.musicVolume) here. Slider drag already invokes it
+    // continuously, so no UI code needs to change later.
 }
 
 int UIManager::menuButtonAt(sf::Vector2i pixel) const
@@ -1026,27 +1035,10 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::Setting:
-    {
-        auto y = vstack(400, 1);
-        add(y(0), {BTN_W, BTN_H}, "Back", Button::Style::Subtle, [this]{ handleBack(); });
         break;
-    }
 
     case UIState::Graphic:
-    {
-        auto y = vstack(240, 3);
-        add(y(0), {BTN_W, BTN_H}, "Character  ( < / > )", Button::Style::Subtle, [this]{
-            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-            sets_.save(cfg_);
-        });
-        add(y(1), {BTN_W, BTN_H}, "Background  ( < / > )", Button::Style::Subtle, [this]{
-            cfg_.cosmetic.backgroundId = std::min(7, cfg_.cosmetic.backgroundId + 1);
-            sets_.save(cfg_);
-        });
-        add(y(2), {BTN_W, BTN_H}, "Back", Button::Style::Subtle, [this]{ handleBack(); });
         break;
-    }
 
     case UIState::LoadGame:
     {
@@ -1222,6 +1214,26 @@ void UIManager::drawMouseDebugInfo()
     win_.draw(debugText_);
 }
 
+void UIManager::drawActiveDebugHitboxes()
+{
+    const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+    const sf::Vector2f point(mouse.x, mouse.y);
+    auto box = [&](const sf::FloatRect& base) {
+        const sf::FloatRect r = scaledBaseRect(base);
+        sf::RectangleShape shape(r.size); shape.setPosition(r.position);
+        shape.setFillColor(sf::Color::Transparent); shape.setOutlineThickness(2.f);
+        shape.setOutlineColor(r.contains(point) ? sf::Color::Green : sf::Color::Red);
+        win_.draw(shape);
+    };
+    if (state_ == UIState::Graphic) {
+        box(kCharacterPanelBounds); box(kCharacterPrevBounds); box(kCharacterNextBounds);
+        box(kThemePanelBounds); box(kThemePrevBounds); box(kThemeNextBounds);
+    } else if (state_ == UIState::Setting) {
+        box(kSfxTrackBounds); box(kSfxDecBounds); box(kSfxIncBounds);
+        box(kMusicTrackBounds); box(kMusicDecBounds); box(kMusicIncBounds); box(kSettingOkBounds);
+    }
+}
+
 void UIManager::drawBackIcon()
 {
     if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause ||
@@ -1333,6 +1345,8 @@ void UIManager::render()
         win_.setView(win_.getDefaultView());
         if (state_ == UIState::MainMenu)
             drawMainMenuDebugOverlay();
+        else
+            drawActiveDebugHitboxes();
         drawMouseDebugInfo();
     }
     win_.display();
@@ -1397,41 +1411,28 @@ void UIManager::renderLvlSel()
 
 void UIManager::renderSetting()
 {
-    drawCenteredText("SETTINGS", 140, 40, sf::Color::White, true);
-    drawCenteredText("Master Volume", 200, 24, sf::Color::White);
-
-    sf::FloatRect track({ 500, 250 }, { 600, 40 });
-    sf::RectangleShape bar(track.size);
-    bar.setPosition(track.position);
-    bar.setFillColor(sf::Color(60, 60, 70));
-    bar.setOutlineThickness(-2.f);
-    bar.setOutlineColor(sf::Color(140, 140, 160));
-    win_.draw(bar);
-
-    float filled = track.size.x * (cfg_.volume / 100.f);
-    sf::RectangleShape fill({ filled, track.size.y });
-    fill.setPosition(track.position);
-    fill.setFillColor(colorFromHex(0x4A90E2));
-    win_.draw(fill);
-
-    sf::Text v(font_, std::to_string(cfg_.volume) + "%", 22);
-    v.setFillColor(sf::Color::White);
-    v.setPosition({ track.position.x + track.size.x + 12, track.position.y + 6 });
-    win_.draw(v);
-
-    drawCenteredText("Click on the bar  |  Left/Right to step 5%  |  Esc back", 320, 18, sf::Color(180, 180, 180));
-
-    for (auto& b : btns_) b.draw(win_, font_);
+    win_.setView(win_.getDefaultView());
+    auto slider = [&](const sf::FloatRect& base, int value, const std::string& name) {
+        const sf::FloatRect b = scaledBaseRect(base);
+        sf::RectangleShape track(b.size); track.setPosition(b.position); track.setFillColor(sf::Color(20,20,20,190)); win_.draw(track);
+        sf::RectangleShape fill({b.size.x * value / 100.f, b.size.y}); fill.setPosition(b.position); fill.setFillColor(sf::Color(255,215,0,180)); win_.draw(fill);
+        sf::CircleShape knob(13.f); knob.setOrigin({13.f,13.f}); knob.setPosition({b.position.x + b.size.x * value / 100.f,b.position.y + b.size.y*.5f}); knob.setFillColor(sf::Color::White); win_.draw(knob);
+        sf::Text label(font_, name + ": " + std::to_string(value) + "%", 22); label.setFillColor(sf::Color::White); label.setPosition({b.position.x,b.position.y-32.f}); win_.draw(label);
+    };
+    slider(kSfxTrackBounds, cfg_.volume, "SFX");
+    slider(kMusicTrackBounds, cfg_.musicVolume, "Music");
+    win_.setView(uiView_);
 }
 
 void UIManager::renderGraphic()
 {
-    drawCenteredText("GRAPHIC", 140, 40, sf::Color::White, true);
-    CharacterRenderer::draw(win_, ctx_.selectedCharacterID, { UI_W * 0.5f, 205.f }, 54.f);
-    drawCenteredText(CharacterRenderer::name(ctx_.selectedCharacterID),  290, 28, sf::Color::White, true);
-    drawCenteredText("Background: #" + std::to_string(cfg_.cosmetic.backgroundId), 330, 24, sf::Color::White);
-    drawCenteredText("Select Character or Background, then use < / >", 380, 18, sf::Color(180, 180, 180));
-    for (auto& b : btns_) b.draw(win_, font_);
+    win_.setView(win_.getDefaultView());
+    const sf::FloatRect left = scaledBaseRect(kCharacterPanelBounds), right = scaledBaseRect(kThemePanelBounds);
+    sf::Text a(font_, "CHARACTER: " + CharacterRenderer::name(ctx_.selectedCharacterID), 28); a.setFillColor(sf::Color::White); a.setPosition({left.position.x+35.f,left.position.y+35.f}); win_.draw(a);
+    sf::Text b(font_, "THEME: " + kThemeNames[currentThemeIndex_], 28); b.setFillColor(sf::Color::White); b.setPosition({right.position.x+35.f,right.position.y+35.f}); win_.draw(b);
+    auto arrow = [&](const sf::FloatRect& base, const char* text) { const sf::FloatRect r=scaledBaseRect(base); sf::Text t(font_, text, 44); t.setFillColor(sf::Color::White); t.setPosition({r.position.x+16.f,r.position.y}); win_.draw(t); };
+    arrow(kCharacterPrevBounds,"<"); arrow(kCharacterNextBounds,">"); arrow(kThemePrevBounds,"<"); arrow(kThemeNextBounds,">");
+    win_.setView(uiView_);
 }
 
 void UIManager::renderLoad()

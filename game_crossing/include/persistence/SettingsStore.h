@@ -6,14 +6,15 @@
 //  Audio volume + cosmetic choice (character + background).
 //
 //  Persisted to a single line in settings.txt:
-//      volume|characterId|backgroundId
+//      sfxVolume|musicVolume|characterId|backgroundId
 //
 //  load() returns defaults if the file is missing or malformed.
 //  save() is best-effort; failures are swallowed (the game still plays).
 // ---------------------------------------------------------------------
 struct GameSettings
 {
-    int           volume       = 80;   // 0..100
+    int           volume       = 80;   // SFX volume, 0..100 (kept name for compatibility)
+    int           musicVolume  = 80;   // Music volume, 0..100
     GraphicChoice cosmetic;
 };
 

@@ -74,6 +74,7 @@ private:
     void drawBackground();
     void drawMainMenuHoverGlow();
     void drawMainMenuDebugOverlay();
+    void drawActiveDebugHitboxes();
     void drawMouseDebugInfo();
     void drawBackIcon();
     void drawModalOverlay();
@@ -112,6 +113,10 @@ private:
     sf::FloatRect scaledMenuBounds(std::size_t index) const;
     int menuButtonAt(sf::Vector2i pixel) const;
     void activateMainMenuButton(std::size_t index);
+    sf::FloatRect scaledBaseRect(const sf::FloatRect& baseRect) const;
+    void setSfxVolumeFromMouse(sf::Vector2i pixel);
+    void setMusicVolumeFromMouse(sf::Vector2i pixel);
+    void applyAudioVolumes();
 
     // Members
     sf::RenderWindow& win_;
@@ -123,11 +128,19 @@ private:
     bool       assetsLoaded_ = false;
     std::string currentTheme_ = "spring";
     bool       debugUi_ = false;
+    int        currentThemeIndex_ = 0;
+    bool       draggingSfx_ = false;
+    bool       draggingMusic_ = false;
 
     // Coordinates are in the authored 1920x1080 image.  Adjust only these
     // values after using F3/D debug mode; rendering and collision scale them
     // automatically to the real window size.
     static const std::array<sf::FloatRect, 7> kMainMenuButtonBounds;
+    static const std::array<std::string, 4> kThemeNames;
+    static const sf::FloatRect kCharacterPanelBounds, kCharacterPrevBounds, kCharacterNextBounds;
+    static const sf::FloatRect kThemePanelBounds, kThemePrevBounds, kThemeNextBounds;
+    static const sf::FloatRect kSfxTrackBounds, kSfxDecBounds, kSfxIncBounds;
+    static const sf::FloatRect kMusicTrackBounds, kMusicDecBounds, kMusicIncBounds, kSettingOkBounds;
 
     UIState        state_                = UIState::Boot;
     UIState        stateBeforeModal_     = UIState::MainMenu;

@@ -4,6 +4,6 @@
 class CAnimal : public CObstacle {
 public:
     CAnimal(float startX, float startY, direction dir);
-    void move() override;
     void tell();
+    void move(float dt) override;
 };

@@ -30,4 +30,7 @@ public:
     float getY() {
         return y;
     }
+
+    // Update your virtual move function[cite: 16]
+    virtual void move(float dt) = 0;
 };

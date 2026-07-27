@@ -2,10 +2,10 @@
 #include "../include/CVehicle.h"
 
 CVehicle::CVehicle(float startX, float startY, direction dir)
-    : CObstacle(startX, startY, 120.0f, 60.0f, 8.0f, dir) {
+    : CObstacle(startX, startY, 120.0f, 60.0f, 8.0f, dir), isStopping(false) {
 }
 
-bool CVehicle::getStoppingStatus()
+bool CVehicle::getStatus()
 {
     if (isStopping == true)
         return true;
@@ -23,12 +23,17 @@ void CVehicle::continueMoving()
     isStopping = false;
 }
 
-void CVehicle::move() 
+void CVehicle::move(float dt)
 {
-    if (dir == RIGHT)
-    {
-        x += speed;
+    // If the vehicle is supposed to be stopped, exit the function immediately!
+    if (isStopping) {
         return;
     }
-        x -= speed;
+
+    if (dir == RIGHT)
+    {
+        x += speed * dt;
+        return;
+    }
+    x -= speed * dt;
 }

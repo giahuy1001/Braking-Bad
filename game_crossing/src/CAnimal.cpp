@@ -6,13 +6,13 @@ CAnimal::CAnimal(float startX, float startY, direction dir)
 }
 
 // move function
-void CAnimal::move() {
+void CAnimal::move(float dt) {
     if (dir == RIGHT)
     {
-        x += speed;
+        x += speed * dt;
         return;
     }
-    x -= speed;
+    x -= speed * dt;
 }
 
 void CAnimal::tell()

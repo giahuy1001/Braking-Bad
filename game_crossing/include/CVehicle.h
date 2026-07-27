@@ -6,8 +6,8 @@ private:
     bool isStopping;
 public:
     CVehicle(float startX, float startY, direction dir);
-    bool getStoppingStatus();
+    bool getStatus();
     void stop();
     void continueMoving();
-    void move() override;
+    void move(float dt) override;
 };

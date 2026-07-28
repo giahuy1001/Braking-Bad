@@ -20,6 +20,7 @@ public:
     bool isMoving() const;
 
     sf::Vector2f getPosition() const;
+    sf::FloatRect getBounds() const;
     void setPosition(sf::Vector2f pos);
 
     void setMovementBounds(sf::FloatRect bounds);

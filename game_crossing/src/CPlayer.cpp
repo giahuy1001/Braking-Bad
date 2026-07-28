@@ -56,8 +56,11 @@ void CPlayer::setPosition(sf::Vector2f pos)
     moving_ = false;
 }
 
-// (getBounds() was deleted here since it is now inherited from CGameObject)
-
+// Restored to correctly offset the AABB from the center point to the top-left
+sf::FloatRect CPlayer::getBounds() const
+{
+    return sf::FloatRect({ x - radius_, y - radius_ }, { radius_ * 2.f, radius_ * 2.f });
+}
 void CPlayer::setMovementBounds(sf::FloatRect bounds)
 {
     movementBounds_ = bounds;

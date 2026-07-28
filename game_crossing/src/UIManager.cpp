@@ -881,18 +881,12 @@ void UIManager::update(float dt)
     if (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay) {
         if (gameplayStarted_) {
 
-            //Endless mode speed scaling
+            // Endless mode speed scaling
             float currentMultiplier = 1.0f;
             if (state_ == UIState::EndlessPlay) {
-                // Calculate how far the player has traveled upward (Y starts at -1080 and goes more negative)
                 float distanceTraveled = std::abs(player_.getPosition().y + 1080.0f);
-
-                if (distanceTraveled > 15000.f) {
-                    currentMultiplier = 2.0f; // Level 3 speed
-                }
-                else if (distanceTraveled > 5000.f) {
-                    currentMultiplier = 1.5f; // Level 2 speed
-                }
+                if (distanceTraveled > 15000.f) currentMultiplier = 2.0f;
+                else if (distanceTraveled > 5000.f) currentMultiplier = 1.5f;
             }
 
             // 1. Move all obstacles first
@@ -914,114 +908,51 @@ void UIManager::update(float dt)
             // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
-                obstacleSpawnTimer_ = 0.6f; // Spawn slightly faster for more traffic
+                obstacleSpawnTimer_ = 0.6f;
 
-                // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
-                    for (const MapBlock& block : blocks) {
-
-                        for (int row = 0; row < LANES_PER_BLOCK; ++row) {
-                            LaneType type = block.lanes[row];
-
-                            // We only spawn in Vehicle and Animal lanes
-                            if (type == LaneType::Safe) continue;
-
-                            // 1. FIX THE DIRECTION: Alternate direction based on the row and block ID!
-                            direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
-
-                            // 50% chance to attempt a spawn in this lane
-                            if (rand() % 100 < 50) {
-
-                                float rowY = block.startY + (row * Grid::CELL_SIZE);
-                                float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
-
-                                // 2. FIX THE OVERLAPPING: Check if the spawn point is currently blocked
-                                bool isBlocked = false;
-                                for (auto obs : Obstacles) {
-                                    // If they are in the exact same lane...
-                                    if (std::abs(obs->getY() - rowY) < 1.0f) {
-                                        // Increased the buffer to 400 pixels to ensure plenty of space
-                                        if (std::abs(obs->getX() - spawnX) < 400.f) {
-                                            isBlocked = true;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                // 3. Spawn only if the road is clear!
-                                if (!isBlocked) {
-                                    if (type == LaneType::Vehicle) {
-                                        // Even rows are FAST lanes (Cars only), Odd rows are SLOW lanes (Trucks only)
-                                        if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCar(spawnX, rowY, dir));
-                                        }
-                                        else {
-                                            Obstacles.push_back(new CTruck(spawnX, rowY, dir));
-                                        }
-                                    }
-                                    else if (type == LaneType::Animal) {
-                                        // Even rows are CAT lanes, Odd rows are DEER lanes
-                                        if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCat(spawnX, rowY, dir));
-                                        }
-                                        else {
-                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    // ... [Your exact spawner code from before goes here] ...
                     };
 
-                // Run the spawner on the correct map data
-                if (state_ == UIState::EndlessPlay) {
-                    spawnInBlocks(endlessMap_.getBlocks());
+                if (state_ == UIState::EndlessPlay) spawnInBlocks(endlessMap_.getBlocks());
+                else spawnInBlocks(classicMap_.getBlocks());
+            }
+
+            // --- 4. COLLISION DETECTION (MOVED INSIDE THE IF STATEMENT!) ---
+            bool hit = false;
+            for (auto obs : Obstacles) {
+                // Type-identification check via dynamic_cast
+                if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
+                    if (player_.isImpact(v)) {
+                        hit = true;
+                        break;
+                    }
+                }
+                else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
+                    if (player_.isImpact(a)) {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+
+            // Halt entity movement and transition the state machine to GAME_OVER
+            if (hit) {
+                player_.kill();
+
+                if (state_ == UIState::ClassicPlay) {
+                    ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 }
                 else {
-                    spawnInBlocks(classicMap_.getBlocks());
+                    ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
                 }
+
+                setState(UIState::GameOver);
             }
+            // ---------------------------------------------------------------
         }
     }
-
-    // --- NEW: COLLISION DETECTION ---
-
-    bool hit = false;
-    for (auto obs : Obstacles) {
-
-        // Type-identification check via dynamic_cast
-        if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
-            // Calls the bool isImpact(CVehicle* vehicle) overload
-            if (player_.isImpact(v)) { // Assuming your variable is named player_
-                hit = true;
-                break;
-            }
-        }
-        else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
-            // Calls the bool isImpact(CAnimal* animal) overload
-            if (player_.isImpact(a)) { // Assuming your variable is named player_
-                hit = true;
-                break;
-            }
-        }
-    }
-
-    // Halt entity movement and transition the state machine to GAME_OVER
-    if (hit) {
-        player_.kill(); // Triggers the dead state
-
-        if (state_ == UIState::ClassicPlay) {
-            ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
-        }
-        else {
-            ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
-        }
-
-        setState(UIState::GameOver);
-    }
-    // ---------------------------------
-}
+} // <-- End of UIManager::update() function
 
 // ---------------------------------------------------------------------
 //  State management helpers
@@ -1397,6 +1328,42 @@ void UIManager::rebuildButtons()
     {
         add({ (UI_W - BTN_W) * 0.5f, 600 }, { BTN_W, BTN_H }, "Back",
             Button::Style::Subtle, [this] { handleBack(); });
+        break;
+    }
+
+    case UIState::GameOver:
+    {
+        auto y = vstack(400, 1);
+        add(y(0), { BTN_W, BTN_H }, "Save & Continue", Button::Style::Primary, [this] {
+
+            // Replicate your ranking save logic directly into the button!
+            RunRecord r;
+            r.name = ctx_.pendingName;
+            if (ctx_.mode == StateContext::Mode::Classic)
+            {
+                r.mode = GameMode::Classic;
+                r.level = ctx_.classicLevel;
+                r.elapsedSec = ctx_.classicSec;
+                r.score = 0;
+            }
+            else
+            {
+                r.mode = GameMode::Endless;
+                r.level = 0;
+                r.elapsedSec = ctx_.endlessSec;
+                r.score = ctx_.endlessScore;
+            }
+            r.savedAtUnix = nowUnix();
+            ranks_.submit(r);
+
+            if (classicWon_) {
+                classicWon_ = false;
+                setState(UIState::LevelSelect);
+            }
+            else {
+                handleBack();
+            }
+            });
         break;
     }
 

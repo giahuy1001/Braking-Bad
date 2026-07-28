@@ -6,6 +6,7 @@
 #include "EndlessMap.h"
 #include "ClassicMap.h"
 #include "CharacterRenderer.h"
+#include "MapBackground.h"
 #include "CPlayer.h"
 #include "CGameObstacle.h"
 #include "persistence/SaveStore.h"
@@ -104,6 +105,7 @@ private:
     void renderGameOver();
     void renderPause();
     void drawMapBlock(const MapBlock& block, float cameraY);
+    std::string mapImageKey(const MapBlock& block) const;
     void drawPlayer();
     void resetGameplay();
     void updateCamera(float dt);
@@ -127,6 +129,7 @@ private:
     sf::Text   debugText_;
     bool       fontLoaded_ = false;
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, logoTex_, iconsTex_;
+    MapBackground mapBackground_;
     bool       assetsLoaded_ = false;
     std::string currentTheme_ = "spring";
     bool       debugUi_ = false;

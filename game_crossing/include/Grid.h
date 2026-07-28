@@ -22,6 +22,12 @@ namespace Grid
         return GRID_LEFT + (column + 0.5f) * CELL_SIZE;
     }
 
+    // Map files and MapBlock rows are stored top-to-bottom, zero-based.
+    constexpr float rowCenter(float blockStartY, int row)
+    {
+        return blockStartY + (row + 0.5f) * CELL_SIZE;
+    }
+
     constexpr bool isPlayableColumn(int column)
     {
         return column >= PLAYABLE_FIRST_COLUMN && column <= PLAYABLE_LAST_COLUMN;

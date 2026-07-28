@@ -52,19 +52,6 @@ namespace
                  static_cast<std::uint8_t>( rgb        & 0xFF) };
     }
 
-    sf::Color laneColor(LaneType lane, BiomeType biome)
-    {
-        switch (lane) {
-        case LaneType::Safe:
-            return colorFromHex(0x4E8063); // Ép toàn bộ làn S thành màu xanh lá
-        case LaneType::Vehicle:
-            return colorFromHex(0x4A4E57); // Giữ nguyên màu xám
-        case LaneType::Animal:
-            return colorFromHex(0x8A704E); // Giữ nguyên màu vàng đất
-        }
-        return sf::Color::Magenta;
-    }
-
     std::int64_t nowUnix()
     {
         return std::chrono::duration_cast<std::chrono::seconds>(
@@ -199,6 +186,9 @@ bool UIManager::setTheme(const std::string& seasonName)
     settingBgTex_ = std::move(newSetting);
     graphicBgTex_ = std::move(newGraphic);
     currentTheme_ = seasonName;
+    if (!mapBackground_.loadTheme(currentTheme_))
+        std::cerr << "[UIManager] no gameplay maps found for theme '" << currentTheme_ << "'\n";
+    endlessMap_.setAvailableMapLevels(mapBackground_.availableLevelNumbers());
     assetsLoaded_ = true;
     return true;
 }
@@ -646,7 +636,10 @@ void UIManager::handlePlay(const sf::Event& e)
         const sf::Vector2f playerPosition = player_.getPosition();
 
         // ĐOẠN CODE CẦN THÊM: Kiểm tra xem người chơi có đạp trúng nắp cống không
-        int playerCol = static_cast<int>(playerPosition.x / Grid::CELL_SIZE);
+        // Both values are zero-based Grid columns.  Map-file columns are
+        // converted from 1-based to 0-based by loadMapFromFile().
+        const int playerCol = static_cast<int>(std::floor(
+            (playerPosition.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
         bool steppedOnManhole = false;
 
         auto checkManhole = [&](const auto& mapBlocks) {
@@ -657,7 +650,8 @@ void UIManager::handlePlay(const sf::Event& e)
                     int row = static_cast<int>((playerPosition.y - block.startY) / Grid::CELL_SIZE);
                     if (row >= 0 && row < LANES_PER_BLOCK) {
                         // Nếu vị trí cột của người chơi trùng với cột có nắp cống (-1 là không có)
-                        if (block.manholeCols[row] == playerCol) {
+                        if (Grid::isPlayableColumn(playerCol) &&
+                            block.manholeCols[row] == playerCol) {
                             steppedOnManhole = true;
                         }
                     }
@@ -904,14 +898,37 @@ void UIManager::update(float dt)
                 else if (distanceTraveled > 5000.f) currentMultiplier = 1.5f;
             }
 
-            // 1. Move all obstacles first
+            // 1. Move all obstacles first.
             for (auto obs : Obstacles) {
+                obs->setSpeedMultiplier(currentMultiplier);
                 obs->move(dt);
             }
 
-            // 2. Clean up off-screen obstacles using Swap-and-Pop (O(1) complexity!)
+            // An obstacle is valid only when its collision-box centre belongs
+            // to a row whose LaneType matches the obstacle family. This also
+            // clears actors left behind when Endless removes an old MapBlock.
+            auto isOnAssignedHazardLane = [](const CObstacle* obstacle, const auto& blocks) {
+                const sf::FloatRect bounds = obstacle->getBounds();
+                const float centerY = bounds.position.y + bounds.size.y * 0.5f;
+                for (const MapBlock& block : blocks) {
+                    if (!block.contains(centerY)) continue;
+                    const int row = static_cast<int>(std::floor(
+                        (centerY - block.startY) / Grid::CELL_SIZE));
+                    if (row < 0 || row >= LANES_PER_BLOCK) return false;
+
+                    const LaneType lane = block.lanes[row];
+                    return (dynamic_cast<const CVehicle*>(obstacle) != nullptr && lane == LaneType::Vehicle) ||
+                           (dynamic_cast<const CAnimal*>(obstacle) != nullptr && lane == LaneType::Animal);
+                }
+                return false;
+            };
+
+            // 2. Clean up off-screen or invalid-lane actors with swap-and-pop.
             for (int i = 0; i < Obstacles.size(); ) {
-                if (Obstacles[i]->isOffScreen()) {
+                const bool validLane = state_ == UIState::EndlessPlay
+                    ? isOnAssignedHazardLane(Obstacles[i], endlessMap_.getBlocks())
+                    : isOnAssignedHazardLane(Obstacles[i], classicMap_.getBlocks());
+                if (Obstacles[i]->isOffScreen() || !validLane) {
                     delete Obstacles[i]; // Free the memory
 
                     // Overwrite this slot with the last element in the vector
@@ -936,19 +953,27 @@ void UIManager::update(float dt)
                 auto spawnInBlocks = [&](const auto& blocks) {
                     for (const MapBlock& block : blocks) {
                         for (int row = 0; row < LANES_PER_BLOCK; ++row) {
-                            LaneType type = block.lanes[row];
+                            const LaneType type = block.lanes[row];
                             if (type == LaneType::Safe) continue;
+
+                            // Only create actors for lanes currently near the
+                            // viewport. This prevents pre-spawning actors in
+                            // blocks that have not entered the camera yet.
+                            const float laneCenterY = Grid::rowCenter(block.startY, row);
+                            if (laneCenterY < cameraY_ - Grid::CELL_SIZE ||
+                                laneCenterY > cameraY_ + Grid::MAP_HEIGHT + Grid::CELL_SIZE)
+                                continue;
 
                             direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
 
                             if (rand() % 100 < 50) {
-                                float laneTopY = block.startY + (row * Grid::CELL_SIZE);
-                                float rowY = laneTopY + (Grid::CELL_SIZE * 0.25f);
-                                float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
+                                const float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
 
                                 bool isBlocked = false;
                                 for (auto obs : Obstacles) {
-                                    if (std::abs(obs->getY() - rowY) < 1.0f) {
+                                    const sf::FloatRect bounds = obs->getBounds();
+                                    const float obstacleCenterY = bounds.position.y + bounds.size.y * 0.5f;
+                                    if (std::abs(obstacleCenterY - laneCenterY) < 1.0f) {
                                         if (std::abs(obs->getX() - spawnX) < 400.f) {
                                             isBlocked = true;
                                             break;
@@ -958,19 +983,22 @@ void UIManager::update(float dt)
 
                                 if (!isBlocked) {
                                     if (type == LaneType::Vehicle) {
+                                        // Constructors use top-left positions;
+                                        // offset by half the actor height to
+                                        // put its collision box at lane center.
                                         if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCar(spawnX, rowY, dir));
+                                            Obstacles.push_back(new CCar(spawnX, laneCenterY - 25.f, dir));
                                         }
                                         else {
-                                            Obstacles.push_back(new CTruck(spawnX, rowY, dir));
+                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 30.f, dir));
                                         }
                                     }
                                     else if (type == LaneType::Animal) {
                                         if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCat(spawnX, rowY, dir));
+                                            Obstacles.push_back(new CCat(spawnX, laneCenterY - 20.f, dir));
                                         }
                                         else {
-                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                            Obstacles.push_back(new CDeer(spawnX, laneCenterY - 30.f, dir));
                                         }
                                     }
                                 }
@@ -1870,67 +1898,25 @@ void UIManager::renderHelp()
 
 void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 {
-    const float screenY = block.startY - cameraY;
-    if (screenY >= Grid::MAP_HEIGHT || screenY + block.height() <= 0.f)
-        return;
+    // Collision still consumes block.manholeCols; only the old debug drawing
+    // was removed. The sprite's world-space rectangle follows the camera.
+    mapBackground_.drawBlock(win_, mapImageKey(block), block.blockID,
+                             block.startY, block.height(), cameraY);
+}
 
-    // --- OPTIMIZATION: DECLARE SHAPES ONCE ---
-    // Instantiating these here prevents SFML from recalculating geometry 
-    // vertices inside the loops!
-    sf::RectangleShape lane({ Grid::MAP_WIDTH, Grid::CELL_SIZE });
+std::string UIManager::mapImageKey(const MapBlock& block) const
+{
+    // Endless chooses a random level layout. Rendering must use the exact
+    // same level image as the one that produced block.lanes.
+    if (!block.mapImageKey.empty())
+        return block.mapImageKey;
 
-    sf::CircleShape manhole(Grid::CELL_SIZE * 0.35f);
-    manhole.setOutlineThickness(4.f);
-    manhole.setOrigin({ manhole.getRadius(), manhole.getRadius() });
-
-    sf::RectangleShape strip;
-    sf::RectangleShape line;
-    // -----------------------------------------
-
-    for (int row = 0; row < LANES_PER_BLOCK; ++row) {
-        lane.setPosition({ 0.f, screenY + row * Grid::CELL_SIZE });
-        lane.setFillColor(laneColor(block.lanes[row], block.biome));
-        win_.draw(lane);
-
-        // Vẽ nắp cống
-        if (block.manholeCols[row] != -1) {
-            int col = block.manholeCols[row];
-            if (Grid::isPlayableColumn(col)) {
-                manhole.setFillColor(sf::Color(60, 60, 60));
-                manhole.setOutlineColor(sf::Color(30, 30, 30));
-
-                float cx = Grid::columnCenter(col);
-                float cy = screenY + (row + 0.5f) * Grid::CELL_SIZE;
-                manhole.setPosition({ cx, cy });
-
-                win_.draw(manhole);
-            }
-        }
+    // Fallback retained for legacy blocks created before mapImageKey existed.
+    if (state_ == UIState::ClassicPlay) {
+        const int level = std::clamp(ctx_.level, 1, CLASSIC_LEVELS);
+        return "map_level_" + std::to_string(level) + (block.blockID == 0 ? "" : ".1");
     }
-
-    const float sideWidth = Grid::PLAYABLE_FIRST_COLUMN * Grid::CELL_SIZE;
-
-    strip.setSize({ sideWidth, block.height() });
-    strip.setFillColor(sf::Color(0, 0, 0, 70));
-
-    strip.setPosition({ 0.f, screenY });
-    win_.draw(strip);
-
-    strip.setPosition({ Grid::MAP_WIDTH - sideWidth, screenY });
-    win_.draw(strip);
-
-    line.setFillColor(sf::Color(255, 255, 255, 95));
-    line.setSize({ 2.f, block.height() });
-    for (int col = 0; col <= Grid::COLUMNS; ++col) {
-        line.setPosition({ Grid::GRID_LEFT + col * Grid::CELL_SIZE, screenY });
-        win_.draw(line);
-    }
-
-    line.setSize({ Grid::GRID_WIDTH, 2.f });
-    for (int row = 0; row <= Grid::ROWS_PER_BLOCK; ++row) {
-        line.setPosition({ Grid::GRID_LEFT, screenY + row * Grid::CELL_SIZE });
-        win_.draw(line);
-    }
+    return "map_level_" + std::to_string((block.blockID % CLASSIC_LEVELS) + 1);
 }
 
 void UIManager::drawPlayer()
@@ -1955,6 +1941,9 @@ void UIManager::renderPlay()
     }
 
     drawPlayer();
+
+    // Layered after every gameplay actor and before the HUD.
+    win_.draw(trafficLightSprite_);
 
     // --- DEBUG HITBOX DRAWING ---
     if (debugUi_) {
@@ -1998,20 +1987,19 @@ void UIManager::renderPlay()
         std::to_string(minutes % 10) + ":" +
         std::to_string(seconds / 10) + std::to_string(seconds % 10);
     sf::Text timerText(font_, timer, 48);
-    timerText.setFillColor(sf::Color::White);
+    timerText.setFillColor(sf::Color::Black);
     timerText.setPosition({ Grid::MAP_WIDTH + 72.f, 110.f });
     win_.draw(timerText);
 
     sf::Text pauseText(font_, "ESC to Pause", 30);
-    pauseText.setFillColor(sf::Color(210, 215, 225));
+    pauseText.setFillColor(sf::Color::Black);
     pauseText.setPosition({ Grid::MAP_WIDTH + 72.f, 205.f });
     win_.draw(pauseText);
 
     sf::Text movementText(font_, gameplayStarted_ ? "Arrow keys: move" : "Press an arrow key to start", 24);
-    movementText.setFillColor(sf::Color(170, 180, 195));
+    movementText.setFillColor(sf::Color::Black);
     movementText.setPosition({ Grid::MAP_WIDTH + 72.f, 265.f });
     win_.draw(movementText);
-    win_.draw(trafficLightSprite_);
 }
 
 

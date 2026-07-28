@@ -5,6 +5,7 @@
 #include <deque>
 #include <random>
 #include <string>
+#include <vector>
 
 // World-space Y grows downward. Moving "up" therefore decreases Y. A block is
 // data-only; rendering is owned by UIManager (or later by the biome renderer).
@@ -32,6 +33,9 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
 
 struct MapBlock {
     std::uint32_t blockID{ 0 };
+    // Stem of the artwork file used by this block, e.g. "map_level_6.1".
+    // Keeping it with lane data prevents Endless visual/data desynchronizing.
+    std::string mapImageKey;
     BiomeType biome{ BiomeType::Swamp };
     float startY{ 0.f };
     float endY{ 0.f };
@@ -70,6 +74,7 @@ public:
     void init();
     void update(float cameraY);
     void reset();
+    void setAvailableMapLevels(std::vector<int> levels);
 
     const std::deque<MapBlock>& getBlocks() const { return m_blocks; }
     float blockHeight() const { return m_blockHeight; }
@@ -83,4 +88,5 @@ private:
     std::uint32_t m_nextID{ 0 };
     float m_blockHeight{ BLOCK_HEIGHT };
     float m_nextEndY{ 0.f };
+    std::vector<int> m_availableMapLevels;
 };

@@ -1,5 +1,7 @@
 ﻿#include "EndlessMap.h"
 
+#include "Grid.h"
+#include <algorithm>
 #include <random>
 #include <fstream>
 #include <sstream>
@@ -45,10 +47,14 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
     std::ifstream file(filename);
     if (!file.is_open()) return false;
 
+    // A malformed/short level file must never inherit lane or manhole data
+    // from a previous block.
+    outLanes.fill(LaneType::Safe);
+    outManholes.fill(-1);
+
     std::string line;
     for (int i = 0; i < LANES_PER_BLOCK && std::getline(file, line); ++i)
     {
-        outManholes[i] = -1; // Mặc định không có
         if (line.empty()) continue;
 
         if (line[0] == 'V') outLanes[i] = LaneType::Vehicle;
@@ -59,8 +65,14 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
             size_t colonPos = line.find(':');
             if (colonPos != std::string::npos) {
                 std::stringstream ss(line.substr(colonPos + 1));
-                int col;
-                if (ss >> col) outManholes[i] = col;
+                int fileColumn;
+                if (ss >> fileColumn) {
+                    // Level text uses human-readable columns 1..11, while
+                    // Grid and playerCol use C++ indices 0..10.
+                    const int gridColumn = fileColumn - 1;
+                    if (gridColumn >= 0 && gridColumn < Grid::COLUMNS)
+                        outManholes[i] = gridColumn;
+                }
             }
         }
     }
@@ -119,6 +131,16 @@ void EndlessMap::reset()
     init();
 }
 
+void EndlessMap::setAvailableMapLevels(std::vector<int> levels)
+{
+    levels.erase(std::remove_if(levels.begin(), levels.end(), [](int level) {
+        return level < 1 || level > 10;
+    }), levels.end());
+    std::sort(levels.begin(), levels.end());
+    levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
+    m_availableMapLevels = std::move(levels);
+}
+
 void EndlessMap::update(float cameraY)
 {
     // The camera moves up (towards negative Y). Once a lower block is fully
@@ -139,10 +161,15 @@ void EndlessMap::spawnBlockAbove()
     block.biome = m_biomeGen.next();
     block.endY = m_nextEndY;
     block.startY = m_nextEndY - m_blockHeight;
+    block.lanes.fill(LaneType::Safe);
+    block.manholeCols.fill(-1);
     std::random_device rd;
     std::mt19937 localRng(rd());
-    std::uniform_int_distribution<int> mapDist(1, 10);
-    int randomMap = mapDist(localRng);
+    const int randomMap = m_availableMapLevels.empty()
+        ? std::uniform_int_distribution<int>(1, 10)(localRng)
+        : m_availableMapLevels[std::uniform_int_distribution<std::size_t>(
+            0, m_availableMapLevels.size() - 1)(localRng)];
+    block.mapImageKey = "map_level_" + std::to_string(randomMap);
 
     if (!loadMapFromFile(randomMap, block.lanes, block.manholeCols)) {
         block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);

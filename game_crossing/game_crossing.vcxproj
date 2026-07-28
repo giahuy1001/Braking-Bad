@@ -145,6 +145,7 @@
     <ClCompile Include="src\CTruck.cpp" />
     <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
+    <ClCompile Include="src\MapBackground.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
     <ClCompile Include="src\persistence\SaveStore.cpp" />
     <ClCompile Include="src\persistence\RankingStore.cpp" />
@@ -166,6 +167,7 @@
     <ClInclude Include="include\CTruck.h" />
     <ClInclude Include="include\CVehicle.h" />
     <ClInclude Include="include\EndlessMap.h" />
+    <ClInclude Include="include\MapBackground.h" />
     <ClInclude Include="include\Grid.h" />
     <ClInclude Include="include\UIManager.h" />
     <ClInclude Include="include\UIState.h" />

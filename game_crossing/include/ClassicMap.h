@@ -21,6 +21,7 @@ public:
 
             MapBlock block;
             block.blockID = 0;
+            block.mapImageKey = "map_level_" + std::to_string(level);
             block.biome = BiomeType::Urban; // Đảm bảo đúng màu gốc
             block.startY = -EndlessMap::BLOCK_HEIGHT * 1;
             block.endY = 0;
@@ -41,6 +42,7 @@ public:
             {
                 MapBlock block;
                 block.blockID = static_cast<std::uint32_t>(i);
+                block.mapImageKey = "map_level_" + std::to_string(level) + (i == 0 ? "" : ".1");
 
                 // Đảm bảo thứ tự màu sắc: Map dưới là Urban, Map trên là Desert
                 block.biome = (i == 0) ? BiomeType::Urban : BiomeType::Desert;
@@ -76,4 +78,3 @@ private:
     // Stored bottom-to-top so block 0 is the starting block.
     std::vector<MapBlock> m_blocks;
 };
-

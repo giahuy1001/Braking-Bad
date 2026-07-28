@@ -5,7 +5,7 @@ int main()
 {
     sf::RenderWindow window(
         sf::VideoMode({ 1920, 1080 }),
-        "Zombie Apocalypse",
+        "Braking Bad",
         sf::Style::None
     );
 

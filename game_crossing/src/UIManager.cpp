@@ -1696,7 +1696,7 @@ void UIManager::renderBoot()
         logo.setPosition({ (UI_W - sz.x * 0.5f) * 0.5f, 180.f });
         win_.draw(logo);
     }
-    drawCenteredText("CROSSING DEAD",  520, 56, colorFromHex(0xB41E1E), true);
+    drawCenteredText("BRAKING BAD",  520, 56, colorFromHex(0xB41E1E), true);
     drawCenteredText("Team: 25C11_OOP", 600, 24, sf::Color::White);
     drawCenteredText("(c) 2026",        640, 18, sf::Color(180, 180, 180));
 }

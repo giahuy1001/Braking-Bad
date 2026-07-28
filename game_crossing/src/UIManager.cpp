@@ -6,6 +6,7 @@
 #include "CPlayer.h"
 #include "Grid.h"
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -99,11 +100,12 @@ const sf::FloatRect UIManager::kMusicDecBounds      ({1130.f, 465.f}, {50.f, 50.
 const sf::FloatRect UIManager::kMusicIncBounds      ({1620.f, 465.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86.f});
 
+//constructor
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
     uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
     debugText_(font_, "", 18),
-    trafficLightSprite_(texTrafficGreen_) // <-- THÊM DÒNG NÀY
+    trafficLightSprite_(texTrafficGreen_) 
 {
     // Use a project font first, then Windows fonts. This keeps debug text
     // visible even when the game is launched outside the IDE's working dir.
@@ -161,6 +163,31 @@ UIManager::UIManager(sf::RenderWindow& window)
     prog_.load();
 
     setState(UIState::Boot);
+
+    // 1. Load Background Music
+    if (bgMusic_.openFromFile("assets/audio/bgm.mp3")) {
+        bgMusic_.setLooping(true);
+        bgMusic_.play(); // Play BGM immediately on the main menu
+    }
+
+    // 2. Load Traffic Noise
+    if (trafficNoise_.openFromFile("assets/audio/traffic.wav")) {
+        trafficNoise_.setLooping(true);
+        // We DO NOT play this yet. We will start it when gameplay begins!
+    }
+
+    // 3. Load Sound Effects
+    if (crashBuf_.loadFromFile("assets/audio/crash.mp3")) {
+        crashSound_.emplace(crashBuf_);
+    }
+    if (catBuf_.loadFromFile("assets/audio/cat.wav")) {
+        catSound_.emplace(catBuf_);
+    }
+    if (deerBuf_.loadFromFile("assets/audio/deer.mp3")) {
+        deerSound_.emplace(deerBuf_);
+    }
+
+    applyAudioVolumes();
 }
 
 UIManager::~UIManager() = default;
@@ -877,6 +904,10 @@ void UIManager::update(float dt)
 
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
+        // If the game has started, but the traffic audio isn't playing yet, force it to play!
+            if (trafficNoise_.getStatus() != sf::SoundSource::Status::Playing) {
+                trafficNoise_.play();
+            }
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
@@ -968,9 +999,17 @@ void UIManager::update(float dt)
                                     else if (type == LaneType::Animal) {
                                         if (row % 2 == 0) {
                                             Obstacles.push_back(new CCat(spawnX, rowY, dir));
+                                            // 10% chance for the cat to meow when it spawns!
+                                            if (catSound_ && rand() % 100 < 10) {
+                                                catSound_->play();
+                                            }
                                         }
                                         else {
                                             Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                            // 10% chance for the deer to grunt when it spawns!
+                                            if (deerSound_ && rand() % 100 < 10) {
+                                                deerSound_->play();
+                                            }
                                         }
                                     }
                                 }
@@ -1037,6 +1076,8 @@ void UIManager::update(float dt)
 
             if (hit) {
                 player_.kill();
+                if (crashSound_) crashSound_->play(); 
+                trafficNoise_.pause();
                 if (state_ == UIState::ClassicPlay) {
                     ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 }
@@ -1202,10 +1243,13 @@ void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
 
 void UIManager::applyAudioVolumes()
 {
-    // This project does not yet contain an AudioManager. Keep this single
-    // integration point: once it exists, call setSfxVolume(cfg_.volume) and
-    // setMusicVolume(cfg_.musicVolume) here. Slider drag already invokes it
-    // continuously, so no UI code needs to change later.
+    bgMusic_.setVolume(cfg_.musicVolume);
+    trafficNoise_.setVolume(cfg_.musicVolume * 0.8f);
+
+    // Only set volume if the sounds successfully loaded!
+    if (crashSound_) crashSound_->setVolume(cfg_.volume);
+    if (catSound_) catSound_->setVolume(cfg_.volume);
+    if (deerSound_) deerSound_->setVolume(cfg_.volume);
 }
 
 int UIManager::menuButtonAt(sf::Vector2i pixel) const

@@ -175,6 +175,14 @@
     <ClInclude Include="include\persistence\SettingsStore.h" />
     <ClInclude Include="include\persistence\ProgressStore.h" />
   </ItemGroup>
+  <ItemGroup>
+    <Media Include="assets\audio\bgm.mp3" />
+    <Media Include="assets\audio\cat.wav" />
+    <Media Include="assets\audio\crash.mp3" />
+    <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\traffic.wav" />
+    <Media Include="\\Mac\Home\Downloads\nawhij - タンポポ.mp3" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

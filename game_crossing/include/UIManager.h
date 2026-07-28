@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include "UIState.h"
 #include "Button.h"
 #include "EndlessMap.h"
@@ -17,6 +18,7 @@
 #include <string>
 #include <array>
 #include <functional>
+#include <optional>
 
 // ---------------------------------------------------------------------
 //  Central UI controller.  Owns the window, the assets, the persistence
@@ -188,4 +190,20 @@ private:
     RankingStore  ranks_;
     ProgressStore prog_;
     SettingsStore sets_;
+
+    // --- AUDIO SYSTEM ---
+
+    // Streams (Long, looping audio)
+    sf::Music bgMusic_;
+    sf::Music trafficNoise_;
+
+    // Buffers (The raw data for short SFX)
+    sf::SoundBuffer crashBuf_;
+    sf::SoundBuffer catBuf_;
+    sf::SoundBuffer deerBuf_;
+
+    // Players (The objects that actually play the buffers)
+    std::optional<sf::Sound> crashSound_;
+    std::optional<sf::Sound> catSound_;
+    std::optional<sf::Sound> deerSound_;
 };

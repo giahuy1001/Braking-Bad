@@ -3,6 +3,7 @@
 #include "CTruck.h"
 #include "CCat.h"
 #include "CDeer.h"
+#include "CPlayer.h"
 #include "Grid.h"
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -956,6 +957,43 @@ void UIManager::update(float dt)
             }
         }
     }
+
+    // --- NEW: COLLISION DETECTION ---
+
+    bool hit = false;
+    for (auto obs : Obstacles) {
+
+        // Type-identification check via dynamic_cast
+        if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
+            // Calls the bool isImpact(CVehicle* vehicle) overload
+            if (player_.isImpact(v)) { // Assuming your variable is named player_
+                hit = true;
+                break;
+            }
+        }
+        else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
+            // Calls the bool isImpact(CAnimal* animal) overload
+            if (player_.isImpact(a)) { // Assuming your variable is named player_
+                hit = true;
+                break;
+            }
+        }
+    }
+
+    // Halt entity movement and transition the state machine to GAME_OVER
+    if (hit) {
+        player_.kill(); // Triggers the dead state
+
+        if (state_ == UIState::ClassicPlay) {
+            ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+        }
+        else {
+            ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+        }
+
+        setState(UIState::GameOver);
+    }
+    // ---------------------------------
 }
 
 // ---------------------------------------------------------------------
@@ -1835,7 +1873,7 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 
 void UIManager::drawPlayer()
 {
-    player_.render(win_);
+    player_.draw(win_, cameraY_);
 }
 
 void UIManager::renderPlay()

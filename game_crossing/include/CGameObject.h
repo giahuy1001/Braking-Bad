@@ -18,4 +18,7 @@ public:
     virtual ~CGameObject();
 
     virtual void draw(sf::RenderWindow& window, float cameraY);
+    sf::FloatRect getBounds() const {
+        return sf::FloatRect({ x, y }, { width, height });
+    }
 };

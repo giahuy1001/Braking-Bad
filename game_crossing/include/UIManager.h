@@ -170,6 +170,12 @@ private:
     bool gameplayStarted_ = false; // timer/camera remain paused until first move
     bool classicWon_ = false;
 
+    enum class TrafficLight { Green, Yellow, Red };
+    TrafficLight currentLight_ = TrafficLight::Green;
+    float trafficLightTimer_ = 0.f;
+    sf::Texture texTrafficGreen_, texTrafficYellow_, texTrafficRed_;
+    sf::Sprite trafficLightSprite_;
+
     // Per-screen scratch state
     int  loadTabModeIdx_  = 0;     // 0 = Classic, 1 = Endless
     int  rankTabModeIdx_  = 0;

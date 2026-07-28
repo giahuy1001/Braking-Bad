@@ -101,8 +101,9 @@ const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86
 
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
-      uiView_({UI_W * 0.5f, UI_H * 0.5f}, {UI_W, UI_H}),
-      debugText_(font_, "", 18)
+    uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
+    debugText_(font_, "", 18),
+    trafficLightSprite_(texTrafficGreen_) // <-- THÊM DÒNG NÀY
 {
     // Use a project font first, then Windows fonts. This keeps debug text
     // visible even when the game is launched outside the IDE's working dir.
@@ -132,6 +133,20 @@ UIManager::UIManager(sf::RenderWindow& window)
     const bool lg  = logoTex_.loadFromFile("Graphic/1x/DataList.png");
     (void)        iconsTex_.loadFromFile("Graphic/1x/DataList.png");
     (void)lg; // The seasonal backgrounds are the only required UI images.
+
+    bool tGreen = texTrafficGreen_.loadFromFile("assets/props/traffic_green.png");
+    bool tYellow = texTrafficYellow_.loadFromFile("assets/props/traffic_yellow.png");
+    bool tRed = texTrafficRed_.loadFromFile("assets/props/traffic_red.png");
+    (void)tGreen; (void)tYellow; (void)tRed;
+
+    trafficLightSprite_.setTexture(texTrafficGreen_, true);
+    // Đặt tâm (origin) vào chính giữa bức ảnh
+    sf::FloatRect bounds = trafficLightSprite_.getLocalBounds();
+    trafficLightSprite_.setOrigin({ bounds.size.x / 2.f, 0.f });
+
+    // Cột 6 (index 5) và Hàng 9 đếm từ dưới lên (tâm của ô trên cùng)
+    trafficLightSprite_.setPosition({ Grid::columnCenter(5), 0.f });
+
     setTheme("spring");
 
     cfg_ = sets_.load();
@@ -971,43 +986,72 @@ void UIManager::update(float dt)
                 else {
                     spawnInBlocks(classicMap_.getBlocks());
                 }
-            }
+                trafficLightTimer_ += dt;
+                if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
+                    currentLight_ = TrafficLight::Yellow;
+                    trafficLightTimer_ -= 4.0f; // Chuyển sang Vàng
+                    trafficLightSprite_.setTexture(texTrafficYellow_);
+                }
+                else if (currentLight_ == TrafficLight::Yellow && trafficLightTimer_ >= 1.0f) {
+                    currentLight_ = TrafficLight::Red;
+                    trafficLightTimer_ -= 1.0f; // Chuyển sang Đỏ
+                    trafficLightSprite_.setTexture(texTrafficRed_);
+                }
+                else if (currentLight_ == TrafficLight::Red && trafficLightTimer_ >= 2.0f) {
+                    currentLight_ = TrafficLight::Green;
+                    trafficLightTimer_ -= 2.0f; // Trở lại Xanh
+                    trafficLightSprite_.setTexture(texTrafficGreen_);
+                }
 
-            // --- 4. COLLISION DETECTION (MOVED INSIDE THE IF STATEMENT!) ---
-            bool hit = false;
-            for (auto obs : Obstacles) {
-                // Type-identification check via dynamic_cast
-                if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
-                    if (player_.isImpact(v)) {
-                        hit = true;
-                        break;
+                // --- Ép kiểu để phân biệt Xe cộ và Động vật ---
+                for (auto obs : Obstacles) {
+                    // dynamic_cast sẽ trả về nullptr nếu obs là động vật (CAnimal)
+                    if (CVehicle* vehicle = dynamic_cast<CVehicle*>(obs)) {
+                        if (currentLight_ == TrafficLight::Red) {
+                            vehicle->stop();
+                        }
+                        else {
+                            vehicle->continueMoving();
+                        }
                     }
                 }
-                else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
-                    if (player_.isImpact(a)) {
-                        hit = true;
-                        break;
+
+
+                // --- 4. COLLISION DETECTION (MOVED INSIDE THE IF STATEMENT!) ---
+                bool hit = false;
+                for (auto obs : Obstacles) {
+                    // Type-identification check via dynamic_cast
+                    if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
+                        if (player_.isImpact(v)) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
+                        if (player_.isImpact(a)) {
+                            hit = true;
+                            break;
+                        }
                     }
                 }
-            }
 
-            // Halt entity movement and transition the state machine to GAME_OVER
-            if (hit) {
-                player_.kill();
+                // Halt entity movement and transition the state machine to GAME_OVER
+                if (hit) {
+                    player_.kill();
 
-                if (state_ == UIState::ClassicPlay) {
-                    ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                    if (state_ == UIState::ClassicPlay) {
+                        ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                    }
+                    else {
+                        ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+                    }
+
+                    setState(UIState::GameOver);
                 }
-                else {
-                    ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
-                }
-
-                setState(UIState::GameOver);
             }
-            // ---------------------------------------------------------------
         }
     }
-} // <-- End of UIManager::update() function
+}
 
 // ---------------------------------------------------------------------
 //  State management helpers
@@ -1049,7 +1093,10 @@ void UIManager::resetGameplay()
         delete obs;
     }
     Obstacles.clear();
-    obstacleSpawnTimer_ = 0.f; // Reset the timer when a new game starts   
+    obstacleSpawnTimer_ = 0.f; // Reset the timer when a new game starts  
+    currentLight_ = TrafficLight::Green;
+    trafficLightTimer_ = 0.f;
+    trafficLightSprite_.setTexture(texTrafficGreen_);
 }
 
 float UIManager::maxWalkablePlayerY() const
@@ -1383,42 +1430,6 @@ void UIManager::rebuildButtons()
     {
         add({ (UI_W - BTN_W) * 0.5f, 600 }, { BTN_W, BTN_H }, "Back",
             Button::Style::Subtle, [this] { handleBack(); });
-        break;
-    }
-
-    case UIState::GameOver:
-    {
-        auto y = vstack(400, 1);
-        add(y(0), { BTN_W, BTN_H }, "Save & Continue", Button::Style::Primary, [this] {
-
-            // Replicate your ranking save logic directly into the button!
-            RunRecord r;
-            r.name = ctx_.pendingName;
-            if (ctx_.mode == StateContext::Mode::Classic)
-            {
-                r.mode = GameMode::Classic;
-                r.level = ctx_.classicLevel;
-                r.elapsedSec = ctx_.classicSec;
-                r.score = 0;
-            }
-            else
-            {
-                r.mode = GameMode::Endless;
-                r.level = 0;
-                r.elapsedSec = ctx_.endlessSec;
-                r.score = ctx_.endlessScore;
-            }
-            r.savedAtUnix = nowUnix();
-            ranks_.submit(r);
-
-            if (classicWon_) {
-                classicWon_ = false;
-                setState(UIState::LevelSelect);
-            }
-            else {
-                handleBack();
-            }
-            });
         break;
     }
 
@@ -1998,7 +2009,9 @@ void UIManager::renderPlay()
     movementText.setFillColor(sf::Color(170, 180, 195));
     movementText.setPosition({ Grid::MAP_WIDTH + 72.f, 265.f });
     win_.draw(movementText);
+    win_.draw(trafficLightSprite_);
 }
+
 
 void UIManager::renderGameOver()
 {

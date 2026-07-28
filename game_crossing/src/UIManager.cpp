@@ -1871,23 +1871,30 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
     if (screenY >= Grid::MAP_HEIGHT || screenY + block.height() <= 0.f)
         return;
 
-    // Each block owns a 9-row lane layout. Entity systems can later spawn
-    // vehicles/animals only on their matching LaneType rows.
+    // --- OPTIMIZATION: DECLARE SHAPES ONCE ---
+    // Instantiating these here prevents SFML from recalculating geometry 
+    // vertices inside the loops!
     sf::RectangleShape lane({ Grid::MAP_WIDTH, Grid::CELL_SIZE });
+
+    sf::CircleShape manhole(Grid::CELL_SIZE * 0.35f);
+    manhole.setOutlineThickness(4.f);
+    manhole.setOrigin({ manhole.getRadius(), manhole.getRadius() });
+
+    sf::RectangleShape strip;
+    sf::RectangleShape line;
+    // -----------------------------------------
+
     for (int row = 0; row < LANES_PER_BLOCK; ++row) {
         lane.setPosition({ 0.f, screenY + row * Grid::CELL_SIZE });
         lane.setFillColor(laneColor(block.lanes[row], block.biome));
         win_.draw(lane);
 
-        // ĐOẠN CODE CẦN THÊM VÀO ĐÂY: Vẽ nắp cống
+        // Vẽ nắp cống
         if (block.manholeCols[row] != -1) {
             int col = block.manholeCols[row];
             if (Grid::isPlayableColumn(col)) {
-                sf::CircleShape manhole(Grid::CELL_SIZE * 0.35f);
-                manhole.setFillColor(sf::Color(60, 60, 60)); // Màu nắp cống xám đậm
-                manhole.setOutlineThickness(4.f);
-                manhole.setOutlineColor(sf::Color(30, 30, 30)); // Viền nắp cống
-                manhole.setOrigin({ manhole.getRadius(), manhole.getRadius() });
+                manhole.setFillColor(sf::Color(60, 60, 60));
+                manhole.setOutlineColor(sf::Color(30, 30, 30));
 
                 float cx = Grid::columnCenter(col);
                 float cy = screenY + (row + 0.5f) * Grid::CELL_SIZE;
@@ -1898,28 +1905,27 @@ void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
         }
     }
 
-    // All 11 columns are rendered (and available to obstacle systems). Only
-    // the two outer columns on either side are darkened as non-walkable lanes.
     const float sideWidth = Grid::PLAYABLE_FIRST_COLUMN * Grid::CELL_SIZE;
-    sf::RectangleShape leftStrip({sideWidth, block.height()});
-    leftStrip.setPosition({0.f, screenY});
-    leftStrip.setFillColor(sf::Color(0, 0, 0, 70));
-    win_.draw(leftStrip);
-    sf::RectangleShape rightStrip({sideWidth, block.height()});
-    rightStrip.setPosition({Grid::MAP_WIDTH - sideWidth, screenY});
-    rightStrip.setFillColor(sf::Color(0, 0, 0, 70));
-    win_.draw(rightStrip);
 
-    sf::RectangleShape line;
+    strip.setSize({ sideWidth, block.height() });
+    strip.setFillColor(sf::Color(0, 0, 0, 70));
+
+    strip.setPosition({ 0.f, screenY });
+    win_.draw(strip);
+
+    strip.setPosition({ Grid::MAP_WIDTH - sideWidth, screenY });
+    win_.draw(strip);
+
     line.setFillColor(sf::Color(255, 255, 255, 95));
-    line.setSize({2.f, block.height()});
+    line.setSize({ 2.f, block.height() });
     for (int col = 0; col <= Grid::COLUMNS; ++col) {
-        line.setPosition({Grid::GRID_LEFT + col * Grid::CELL_SIZE, screenY});
+        line.setPosition({ Grid::GRID_LEFT + col * Grid::CELL_SIZE, screenY });
         win_.draw(line);
     }
-    line.setSize({Grid::GRID_WIDTH, 2.f});
+
+    line.setSize({ Grid::GRID_WIDTH, 2.f });
     for (int row = 0; row <= Grid::ROWS_PER_BLOCK; ++row) {
-        line.setPosition({Grid::GRID_LEFT, screenY + row * Grid::CELL_SIZE});
+        line.setPosition({ Grid::GRID_LEFT, screenY + row * Grid::CELL_SIZE });
         win_.draw(line);
     }
 }

@@ -1961,7 +1961,7 @@ void UIManager::renderPlay()
     drawPlayer();
 
     // --- DEBUG HITBOX DRAWING ---
-    if (true) {
+    if (debugUi_) {
         // 1. Draw NEON MAGENTA Hitboxes for all Obstacles
         for (auto obs : Obstacles) {
             sf::FloatRect bounds = obs->getBounds();

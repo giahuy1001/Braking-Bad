@@ -690,20 +690,48 @@ void UIManager::handlePlay(const sf::Event& e)
 
 void UIManager::handleGameOver(const sf::Event& e)
 {
+    // 1. ADD STANDARD UI BUTTON INTERACTION (Mouse Clicks & Navigation)
+    if (const auto* m = e.getIf<sf::Event::MouseButtonPressed>()) {
+        if (m->button == sf::Mouse::Button::Left) {
+            int clicked = menuButtonAt(sf::Vector2i(m->position.x, m->position.y));
+            if (clicked >= 0) {
+                focusIdx_ = clicked;
+                activateFocused(); // Activates the clicked button
+                return;
+            }
+        }
+    }
+    else if (const auto* k = e.getIf<sf::Event::KeyPressed>()) {
+        if (k->code == sf::Keyboard::Key::Up || k->code == sf::Keyboard::Key::W) {
+            moveFocus(-1);
+            return;
+        }
+        else if (k->code == sf::Keyboard::Key::Down || k->code == sf::Keyboard::Key::S) {
+            moveFocus(1);
+            return;
+        }
+        else if (k->code == sf::Keyboard::Key::Enter) {
+            // If we have actual UI buttons on screen, pressing Enter should activate them!
+            if (!btns_.empty()) {
+                activateFocused();
+                return;
+            }
+        }
+    }
+
+    // 2. YOUR ORIGINAL FALLBACK RANKING LOGIC
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Enter || k->code == sf::Keyboard::Key::R)
         {
             if (classicWon_)
             {
-                // ĐOẠN CODE ĐƯỢC THÊM: Sửa lỗi quên lưu Ranking khi thắng Classic
                 RunRecord r;
                 r.name = ctx_.pendingName;
                 r.mode = GameMode::Classic;
                 r.level = ctx_.classicLevel;
                 r.elapsedSec = ctx_.classicSec;
                 r.score = 0;
-                // Hàm nowUnix() lấy thời gian thực, có sẵn trong file UIManager.cpp của bạn
                 r.savedAtUnix = nowUnix();
                 ranks_.submit(r);
 
@@ -712,22 +740,21 @@ void UIManager::handleGameOver(const sf::Event& e)
                 return;
             }
 
-            // Submit to ranking before leaving.
             RunRecord r;
             r.name = ctx_.pendingName;
             if (ctx_.mode == StateContext::Mode::Classic)
             {
-                r.mode       = GameMode::Classic;
-                r.level      = ctx_.classicLevel;
+                r.mode = GameMode::Classic;
+                r.level = ctx_.classicLevel;
                 r.elapsedSec = ctx_.classicSec;
-                r.score      = 0;
+                r.score = 0;
             }
             else
             {
-                r.mode       = GameMode::Endless;
-                r.level      = 0;
+                r.mode = GameMode::Endless;
+                r.level = 0;
                 r.elapsedSec = ctx_.endlessSec;
-                r.score      = ctx_.endlessScore;
+                r.score = ctx_.endlessScore;
             }
             r.savedAtUnix = nowUnix();
             ranks_.submit(r);

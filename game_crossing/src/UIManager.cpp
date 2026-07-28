@@ -894,14 +894,21 @@ void UIManager::update(float dt)
                 obs->move(dt);
             }
 
-            // 2. Clean up off-screen obstacles safely using an Iterator
-            for (auto it = Obstacles.begin(); it != Obstacles.end(); ) {
-                if ((*it)->isOffScreen()) {
-                    delete* it;
-                    it = Obstacles.erase(it);
+            // 2. Clean up off-screen obstacles using Swap-and-Pop (O(1) complexity!)
+            for (int i = 0; i < Obstacles.size(); ) {
+                if (Obstacles[i]->isOffScreen()) {
+                    delete Obstacles[i]; // Free the memory
+
+                    // Overwrite this slot with the last element in the vector
+                    Obstacles[i] = Obstacles.back();
+                    // Shrink the vector by 1
+                    Obstacles.pop_back();
+
+                    // Note: We DO NOT increment 'i' here, because we need to 
+                    // check the new swapped-in element on the next loop!
                 }
                 else {
-                    ++it;
+                    ++i;
                 }
             }
 

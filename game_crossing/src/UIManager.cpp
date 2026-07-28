@@ -1908,10 +1908,12 @@ void UIManager::renderPlay()
     if (state_ == UIState::EndlessPlay) {
         for (const MapBlock& block : endlessMap_.getBlocks())
             drawMapBlock(block, cameraY_);
-    } else {
+    }
+    else {
         for (const MapBlock& block : classicMap_.getBlocks())
             drawMapBlock(block, cameraY_);
     }
+
     // Draw the test obstacles with camera offset
     for (auto obs : Obstacles) {
         obs->draw(win_, cameraY_);
@@ -1919,13 +1921,36 @@ void UIManager::renderPlay()
 
     drawPlayer();
 
+    // --- DEBUG HITBOX DRAWING ---
+    // 1. Draw Red Hitboxes for all Obstacles
+    for (auto obs : Obstacles) {
+        sf::FloatRect bounds = obs->getBounds();
+        sf::RectangleShape box(bounds.size);
+        box.setPosition({ bounds.position.x, bounds.position.y - cameraY_ });
+        box.setFillColor(sf::Color::Transparent);
+        box.setOutlineColor(sf::Color::Red);
+        box.setOutlineThickness(2.0f);
+        win_.draw(box);
+    }
+
+    // 2. Draw Green Hitbox for the Player
+    sf::FloatRect pBounds = player_.getBounds();
+    sf::RectangleShape pBox(pBounds.size);
+    pBox.setPosition({ pBounds.position.x, pBounds.position.y - cameraY_ });
+    pBox.setFillColor(sf::Color::Transparent);
+    pBox.setOutlineColor(sf::Color::Green);
+    pBox.setOutlineThickness(2.0f);
+    win_.draw(pBox);
+    // ----------------------------
+
     // Dedicated, 600px gameplay sidebar.
-    sf::RectangleShape sidebar({Grid::SIDEBAR_WIDTH, Grid::MAP_HEIGHT});
-    sidebar.setPosition({Grid::MAP_WIDTH, 0.f});
+    sf::RectangleShape sidebar({ Grid::SIDEBAR_WIDTH, Grid::MAP_HEIGHT });
+    sidebar.setPosition({ Grid::MAP_WIDTH, 0.f });
     sidebar.setFillColor(sf::Color(26, 31, 40));
     win_.draw(sidebar);
-    sf::RectangleShape divider({4.f, Grid::MAP_HEIGHT});
-    divider.setPosition({Grid::MAP_WIDTH - 2.f, 0.f});
+
+    sf::RectangleShape divider({ 4.f, Grid::MAP_HEIGHT });
+    divider.setPosition({ Grid::MAP_WIDTH - 2.f, 0.f });
     divider.setFillColor(colorFromHex(0xE8B44F));
     win_.draw(divider);
 
@@ -1933,21 +1958,21 @@ void UIManager::renderPlay()
     const int minutes = wholeSeconds / 60;
     const int seconds = wholeSeconds % 60;
     const std::string timer = "TIME  " + std::to_string(minutes / 10) +
-                              std::to_string(minutes % 10) + ":" +
-                              std::to_string(seconds / 10) + std::to_string(seconds % 10);
+        std::to_string(minutes % 10) + ":" +
+        std::to_string(seconds / 10) + std::to_string(seconds % 10);
     sf::Text timerText(font_, timer, 48);
     timerText.setFillColor(sf::Color::White);
-    timerText.setPosition({Grid::MAP_WIDTH + 72.f, 110.f});
+    timerText.setPosition({ Grid::MAP_WIDTH + 72.f, 110.f });
     win_.draw(timerText);
 
     sf::Text pauseText(font_, "ESC to Pause", 30);
     pauseText.setFillColor(sf::Color(210, 215, 225));
-    pauseText.setPosition({Grid::MAP_WIDTH + 72.f, 205.f});
+    pauseText.setPosition({ Grid::MAP_WIDTH + 72.f, 205.f });
     win_.draw(pauseText);
 
     sf::Text movementText(font_, gameplayStarted_ ? "Arrow keys: move" : "Press an arrow key to start", 24);
     movementText.setFillColor(sf::Color(170, 180, 195));
-    movementText.setPosition({Grid::MAP_WIDTH + 72.f, 265.f});
+    movementText.setPosition({ Grid::MAP_WIDTH + 72.f, 265.f });
     win_.draw(movementText);
 }
 

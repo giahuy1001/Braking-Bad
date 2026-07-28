@@ -61,6 +61,7 @@ sf::FloatRect CPlayer::getBounds() const
 {
     return sf::FloatRect({ x - radius_, y - radius_ }, { radius_ * 2.f, radius_ * 2.f });
 }
+
 void CPlayer::setMovementBounds(sf::FloatRect bounds)
 {
     movementBounds_ = bounds;

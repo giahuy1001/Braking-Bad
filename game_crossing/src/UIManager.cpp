@@ -926,7 +926,11 @@ void UIManager::update(float dt)
                             // 50% chance to attempt a spawn in this lane
                             if (rand() % 100 < 50) {
 
-                                float rowY = block.startY + (row * Grid::CELL_SIZE);
+                                // Calculate the exact top of the lane
+                                float laneTopY = block.startY + (row * Grid::CELL_SIZE);
+
+                                // Add a 25% offset to push the car down into the vertical center of the road
+                                float rowY = laneTopY + (Grid::CELL_SIZE * 0.25f);
                                 float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
 
                                 // 2. Check if the spawn point is currently blocked

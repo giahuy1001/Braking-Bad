@@ -908,14 +908,69 @@ void UIManager::update(float dt)
             // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
-                obstacleSpawnTimer_ = 0.6f;
+                obstacleSpawnTimer_ = 0.6f; // Spawn slightly faster for more traffic
 
+                // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
-                    // ... [Your exact spawner code from before goes here] ...
+                    for (const MapBlock& block : blocks) {
+
+                        for (int row = 0; row < LANES_PER_BLOCK; ++row) {
+                            LaneType type = block.lanes[row];
+
+                            // We only spawn in Vehicle and Animal lanes
+                            if (type == LaneType::Safe) continue;
+
+                            // 1. Alternate direction based on the row and block ID
+                            direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
+
+                            // 50% chance to attempt a spawn in this lane
+                            if (rand() % 100 < 50) {
+
+                                float rowY = block.startY + (row * Grid::CELL_SIZE);
+                                float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
+
+                                // 2. Check if the spawn point is currently blocked
+                                bool isBlocked = false;
+                                for (auto obs : Obstacles) {
+                                    if (std::abs(obs->getY() - rowY) < 1.0f) {
+                                        if (std::abs(obs->getX() - spawnX) < 400.f) {
+                                            isBlocked = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // 3. Spawn only if the road is clear!
+                                if (!isBlocked) {
+                                    if (type == LaneType::Vehicle) {
+                                        if (row % 2 == 0) {
+                                            Obstacles.push_back(new CCar(spawnX, rowY, dir));
+                                        }
+                                        else {
+                                            Obstacles.push_back(new CTruck(spawnX, rowY, dir));
+                                        }
+                                    }
+                                    else if (type == LaneType::Animal) {
+                                        if (row % 2 == 0) {
+                                            Obstacles.push_back(new CCat(spawnX, rowY, dir));
+                                        }
+                                        else {
+                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     };
 
-                if (state_ == UIState::EndlessPlay) spawnInBlocks(endlessMap_.getBlocks());
-                else spawnInBlocks(classicMap_.getBlocks());
+                // Run the spawner on the correct map data
+                if (state_ == UIState::EndlessPlay) {
+                    spawnInBlocks(endlessMap_.getBlocks());
+                }
+                else {
+                    spawnInBlocks(classicMap_.getBlocks());
+                }
             }
 
             // --- 4. COLLISION DETECTION (MOVED INSIDE THE IF STATEMENT!) ---

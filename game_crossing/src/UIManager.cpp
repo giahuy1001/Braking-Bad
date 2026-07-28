@@ -1922,25 +1922,27 @@ void UIManager::renderPlay()
     drawPlayer();
 
     // --- DEBUG HITBOX DRAWING ---
-    // 1. Draw Red Hitboxes for all Obstacles
-    for (auto obs : Obstacles) {
-        sf::FloatRect bounds = obs->getBounds();
-        sf::RectangleShape box(bounds.size);
-        box.setPosition({ bounds.position.x, bounds.position.y - cameraY_ });
-        box.setFillColor(sf::Color::Transparent);
-        box.setOutlineColor(sf::Color::Red);
-        box.setOutlineThickness(2.0f);
-        win_.draw(box);
-    }
+    if (true) {
+        // 1. Draw NEON MAGENTA Hitboxes for all Obstacles
+        for (auto obs : Obstacles) {
+            sf::FloatRect bounds = obs->getBounds();
+            sf::RectangleShape box(bounds.size);
+            box.setPosition({ bounds.position.x, bounds.position.y - cameraY_ });
+            box.setFillColor(sf::Color::Transparent);
+            box.setOutlineColor(sf::Color::Magenta);
+            box.setOutlineThickness(-4.0f); // NEGATIVE draws outwards!
+            win_.draw(box);
+        }
 
-    // 2. Draw Green Hitbox for the Player
-    sf::FloatRect pBounds = player_.getBounds();
-    sf::RectangleShape pBox(pBounds.size);
-    pBox.setPosition({ pBounds.position.x, pBounds.position.y - cameraY_ });
-    pBox.setFillColor(sf::Color::Transparent);
-    pBox.setOutlineColor(sf::Color::Green);
-    pBox.setOutlineThickness(2.0f);
-    win_.draw(pBox);
+        // 2. Draw NEON CYAN Hitbox for the Player
+        sf::FloatRect pBounds = player_.getBounds();
+        sf::RectangleShape pBox(pBounds.size);
+        pBox.setPosition({ pBounds.position.x, pBounds.position.y - cameraY_ });
+        pBox.setFillColor(sf::Color::Transparent);
+        pBox.setOutlineColor(sf::Color::Cyan);
+        pBox.setOutlineThickness(-4.0f); // NEGATIVE draws outwards!
+        win_.draw(pBox);
+    }
     // ----------------------------
 
     // Dedicated, 600px gameplay sidebar.

@@ -130,8 +130,8 @@ UIManager::UIManager(sf::RenderWindow& window)
     debugText_.setOutlineColor(sf::Color::Black);
     debugText_.setOutlineThickness(2.f);
 
-    const bool lg  = logoTex_.loadFromFile("Graphic/1x/DataList.png");
-    (void)        iconsTex_.loadFromFile("Graphic/1x/DataList.png");
+    const bool lg  = logoTex_.loadFromFile("../Graphic/1x/DataList.png");
+    (void)        iconsTex_.loadFromFile("../Graphic/1x/DataList.png");
     (void)lg; // The seasonal backgrounds are the only required UI images.
 
     bool tGreen = texTrafficGreen_.loadFromFile("assets/props/traffic_green.png");
@@ -935,27 +935,17 @@ void UIManager::update(float dt)
                 // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
                     for (const MapBlock& block : blocks) {
-
                         for (int row = 0; row < LANES_PER_BLOCK; ++row) {
                             LaneType type = block.lanes[row];
-
-                            // We only spawn in Vehicle and Animal lanes
                             if (type == LaneType::Safe) continue;
 
-                            // 1. Alternate direction based on the row and block ID
                             direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
 
-                            // 50% chance to attempt a spawn in this lane
                             if (rand() % 100 < 50) {
-
-                                // Calculate the exact top of the lane
                                 float laneTopY = block.startY + (row * Grid::CELL_SIZE);
-
-                                // Add a 25% offset to push the car down into the vertical center of the road
                                 float rowY = laneTopY + (Grid::CELL_SIZE * 0.25f);
                                 float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
 
-                                // 2. Check if the spawn point is currently blocked
                                 bool isBlocked = false;
                                 for (auto obs : Obstacles) {
                                     if (std::abs(obs->getY() - rowY) < 1.0f) {
@@ -966,7 +956,6 @@ void UIManager::update(float dt)
                                     }
                                 }
 
-                                // 3. Spawn only if the road is clear!
                                 if (!isBlocked) {
                                     if (type == LaneType::Vehicle) {
                                         if (row % 2 == 0) {
@@ -990,75 +979,71 @@ void UIManager::update(float dt)
                     }
                     };
 
-                // Run the spawner on the correct map data
                 if (state_ == UIState::EndlessPlay) {
                     spawnInBlocks(endlessMap_.getBlocks());
                 }
                 else {
                     spawnInBlocks(classicMap_.getBlocks());
                 }
-                trafficLightTimer_ += dt;
-                if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
-                    currentLight_ = TrafficLight::Yellow;
-                    trafficLightTimer_ -= 4.0f; // Chuyển sang Vàng
-                    trafficLightSprite_.setTexture(texTrafficYellow_);
-                }
-                else if (currentLight_ == TrafficLight::Yellow && trafficLightTimer_ >= 1.0f) {
-                    currentLight_ = TrafficLight::Red;
-                    trafficLightTimer_ -= 1.0f; // Chuyển sang Đỏ
-                    trafficLightSprite_.setTexture(texTrafficRed_);
-                }
-                else if (currentLight_ == TrafficLight::Red && trafficLightTimer_ >= 2.0f) {
-                    currentLight_ = TrafficLight::Green;
-                    trafficLightTimer_ -= 2.0f; // Trở lại Xanh
-                    trafficLightSprite_.setTexture(texTrafficGreen_);
-                }
+            } // <-- SPAWNER BLOCK ENDS HERE
 
-                // --- Ép kiểu để phân biệt Xe cộ và Động vật ---
-                for (auto obs : Obstacles) {
-                    // dynamic_cast sẽ trả về nullptr nếu obs là động vật (CAnimal)
-                    if (CVehicle* vehicle = dynamic_cast<CVehicle*>(obs)) {
-                        if (currentLight_ == TrafficLight::Red) {
-                            vehicle->stop();
-                        }
-                        else {
-                            vehicle->continueMoving();
-                        }
-                    }
-                }
+            // --- 4. TRAFFIC LIGHT SYSTEM (MOVED OUTSIDE SPAWNER TO RUN EVERY FRAME) ---
+            trafficLightTimer_ += dt;
+            if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
+                currentLight_ = TrafficLight::Yellow;
+                trafficLightTimer_ -= 4.0f;
+                trafficLightSprite_.setTexture(texTrafficYellow_);
+            }
+            else if (currentLight_ == TrafficLight::Yellow && trafficLightTimer_ >= 1.0f) {
+                currentLight_ = TrafficLight::Red;
+                trafficLightTimer_ -= 1.0f;
+                trafficLightSprite_.setTexture(texTrafficRed_);
+            }
+            else if (currentLight_ == TrafficLight::Red && trafficLightTimer_ >= 2.0f) {
+                currentLight_ = TrafficLight::Green;
+                trafficLightTimer_ -= 2.0f;
+                trafficLightSprite_.setTexture(texTrafficGreen_);
+            }
 
-
-                // --- 4. COLLISION DETECTION (MOVED INSIDE THE IF STATEMENT!) ---
-                bool hit = false;
-                for (auto obs : Obstacles) {
-                    // Type-identification check via dynamic_cast
-                    if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
-                        if (player_.isImpact(v)) {
-                            hit = true;
-                            break;
-                        }
-                    }
-                    else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
-                        if (player_.isImpact(a)) {
-                            hit = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Halt entity movement and transition the state machine to GAME_OVER
-                if (hit) {
-                    player_.kill();
-
-                    if (state_ == UIState::ClassicPlay) {
-                        ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+            // Update vehicle behavior based on the current light state
+            for (auto obs : Obstacles) {
+                if (CVehicle* vehicle = dynamic_cast<CVehicle*>(obs)) {
+                    if (currentLight_ == TrafficLight::Red) {
+                        vehicle->stop();
                     }
                     else {
-                        ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+                        vehicle->continueMoving();
                     }
-
-                    setState(UIState::GameOver);
                 }
+            }
+            // -----------------------------------------------------------------------
+
+            // --- 5. COLLISION DETECTION ---
+            bool hit = false;
+            for (auto obs : Obstacles) {
+                if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
+                    if (player_.isImpact(v)) {
+                        hit = true;
+                        break;
+                    }
+                }
+                else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
+                    if (player_.isImpact(a)) {
+                        hit = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hit) {
+                player_.kill();
+                if (state_ == UIState::ClassicPlay) {
+                    ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                }
+                else {
+                    ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+                }
+                setState(UIState::GameOver);
             }
         }
     }

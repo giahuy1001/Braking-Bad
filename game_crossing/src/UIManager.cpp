@@ -164,30 +164,10 @@ UIManager::UIManager(sf::RenderWindow& window)
 
     setState(UIState::Boot);
 
-    // 1. Load Background Music
-    if (bgMusic_.openFromFile("assets/audio/bgm.mp3")) {
-        bgMusic_.setLooping(true);
-        bgMusic_.play(); // Play BGM immediately on the main menu
-    }
-
-    // 2. Load Traffic Noise
-    if (trafficNoise_.openFromFile("assets/audio/traffic.wav")) {
-        trafficNoise_.setLooping(true);
-        // We DO NOT play this yet. We will start it when gameplay begins!
-    }
-
-    // 3. Load Sound Effects
-    if (crashBuf_.loadFromFile("assets/audio/crash.mp3")) {
-        crashSound_.emplace(crashBuf_);
-    }
-    if (catBuf_.loadFromFile("assets/audio/cat.wav")) {
-        catSound_.emplace(catBuf_);
-    }
-    if (deerBuf_.loadFromFile("assets/audio/deer.mp3")) {
-        deerSound_.emplace(deerBuf_);
-    }
-
-    applyAudioVolumes();
+    // AudioManager tu load va phan loai asset. applyAudioVolumes() da gui
+    // volume trong Settings vao manager truoc do, nen manager se ap dung no
+    // ngay sau khi cac asset duoc nap.
+    audio_.loadAssets();
 }
 
 UIManager::~UIManager() = default;
@@ -260,6 +240,19 @@ void UIManager::handleEvents()
 
         if (const auto* key = event->getIf<sf::Event::KeyPressed>())
         {
+            if (key->code == sf::Keyboard::Key::F8)
+            {
+                debugAudioMixer_ = !debugAudioMixer_;
+                std::cout << "[Audio Mixer] Debug mixer "
+                          << (debugAudioMixer_ ? "enabled" : "disabled") << '\n';
+                continue;
+            }
+
+            // Khi mixer dang mo, cac phim dieu khien no khong duoc roi xuong
+            // gameplay (vi du Up/Down se khong lam Player di chuyen).
+            if (debugAudioMixer_ && handleDebugAudioMixerKey(*key))
+                continue;
+
             if (key->code == sf::Keyboard::Key::F3 || key->code == sf::Keyboard::Key::D)
             {
                 debugUi_ = !debugUi_;
@@ -905,9 +898,7 @@ void UIManager::update(float dt)
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
         // If the game has started, but the traffic audio isn't playing yet, force it to play!
-            if (trafficNoise_.getStatus() != sf::SoundSource::Status::Playing) {
-                trafficNoise_.play();
-            }
+            if (!audio_.vehicleAmbiencePlaying()) audio_.startVehicleAmbience();
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
@@ -1000,16 +991,12 @@ void UIManager::update(float dt)
                                         if (row % 2 == 0) {
                                             Obstacles.push_back(new CCat(spawnX, rowY, dir));
                                             // 10% chance for the cat to meow when it spawns!
-                                            if (catSound_ && rand() % 100 < 10) {
-                                                catSound_->play();
-                                            }
+                                            if (rand() % 100 < 10) audio_.playAnimalSample();
                                         }
                                         else {
                                             Obstacles.push_back(new CDeer(spawnX, rowY, dir));
                                             // 10% chance for the deer to grunt when it spawns!
-                                            if (deerSound_ && rand() % 100 < 10) {
-                                                deerSound_->play();
-                                            }
+                                            if (rand() % 100 < 10) audio_.playAnimalSample(true);
                                         }
                                     }
                                 }
@@ -1076,8 +1063,8 @@ void UIManager::update(float dt)
 
             if (hit) {
                 player_.kill();
-                if (crashSound_) crashSound_->play(); 
-                trafficNoise_.pause();
+                audio_.playUiCrash();
+                audio_.pauseVehicleAmbience();
                 if (state_ == UIState::ClassicPlay) {
                     ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 }
@@ -1243,13 +1230,35 @@ void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
 
 void UIManager::applyAudioVolumes()
 {
-    bgMusic_.setVolume(cfg_.musicVolume);
-    trafficNoise_.setVolume(cfg_.musicVolume * 0.8f);
+    // Settings cua Player la phan tram (0..100). AudioManager nhan them
+    // Base Volume theo category de tao Final_Volume cho tung asset.
+    audio_.setUserVolumes(static_cast<float>(cfg_.musicVolume),
+                          static_cast<float>(cfg_.volume));
+}
 
-    // Only set volume if the sounds successfully loaded!
-    if (crashSound_) crashSound_->setVolume(cfg_.volume);
-    if (catSound_) catSound_->setVolume(cfg_.volume);
-    if (deerSound_) deerSound_->setVolume(cfg_.volume);
+bool UIManager::handleDebugAudioMixerKey(const sf::Event::KeyPressed& key)
+{
+    constexpr std::size_t categoryCount = static_cast<std::size_t>(AudioCategory::Count);
+    switch (key.code)
+    {
+    case sf::Keyboard::Key::Up:
+        selectedAudioCategory_ = (selectedAudioCategory_ + categoryCount - 1) % categoryCount;
+        return true;
+    case sf::Keyboard::Key::Down:
+        selectedAudioCategory_ = (selectedAudioCategory_ + 1) % categoryCount;
+        return true;
+    case sf::Keyboard::Key::Left:
+        audio_.adjustBaseVolume(static_cast<AudioCategory>(selectedAudioCategory_), -0.05f);
+        return true;
+    case sf::Keyboard::Key::Right:
+        audio_.adjustBaseVolume(static_cast<AudioCategory>(selectedAudioCategory_), 0.05f);
+        return true;
+    case sf::Keyboard::Key::Space:
+        audio_.playPreview(static_cast<AudioCategory>(selectedAudioCategory_));
+        return true;
+    default:
+        return false;
+    }
 }
 
 int UIManager::menuButtonAt(sf::Vector2i pixel) const
@@ -1589,6 +1598,71 @@ void UIManager::drawMouseDebugInfo()
     win_.draw(debugText_);
 }
 
+void UIManager::drawDebugAudioMixer()
+{
+    if (!fontLoaded_) return;
+
+    // Toa do theo pixel cua cua so de overlay luon de doc o ca man hinh
+    // gameplay (default view) lan cac man UI (uiView_).
+    const sf::Vector2u windowSize = win_.getSize();
+    constexpr float panelWidth = 370.f;
+    constexpr float rowHeight = 38.f;
+    constexpr float panelPadding = 20.f;
+    const float panelHeight = 310.f;
+    const float panelX = std::max(12.f, static_cast<float>(windowSize.x) - panelWidth - 18.f);
+    const float panelY = 18.f;
+
+    sf::RectangleShape panel({ panelWidth, panelHeight });
+    panel.setPosition({ panelX, panelY });
+    panel.setFillColor(sf::Color(12, 17, 25, 230));
+    panel.setOutlineThickness(2.f);
+    panel.setOutlineColor(sf::Color(255, 190, 60));
+    win_.draw(panel);
+
+    sf::Text title(font_, "DEBUG AUDIO MIXER", 23);
+    title.setFillColor(sf::Color(255, 210, 80));
+    title.setPosition({ panelX + panelPadding, panelY + 14.f });
+    win_.draw(title);
+
+    sf::Text subtitle(font_, "Base Volume (developer only)", 15);
+    subtitle.setFillColor(sf::Color(185, 195, 210));
+    subtitle.setPosition({ panelX + panelPadding, panelY + 48.f });
+    win_.draw(subtitle);
+
+    constexpr std::size_t categoryCount = static_cast<std::size_t>(AudioCategory::Count);
+    for (std::size_t i = 0; i < categoryCount; ++i)
+    {
+        const float y = panelY + 78.f + static_cast<float>(i) * rowHeight;
+        const AudioCategory category = static_cast<AudioCategory>(i);
+        const bool selected = i == selectedAudioCategory_;
+        const float value = audio_.baseVolume(category);
+
+        sf::RectangleShape row({ panelWidth - panelPadding * 2.f, rowHeight - 4.f });
+        row.setPosition({ panelX + panelPadding, y });
+        row.setFillColor(selected ? sf::Color(54, 79, 108, 235) : sf::Color(28, 35, 47, 190));
+        win_.draw(row);
+
+        sf::Text label(font_, std::string(selected ? "> " : "  ") +
+                                  AudioManager::displayName(category), 18);
+        label.setFillColor(selected ? sf::Color::White : sf::Color(205, 210, 220));
+        label.setPosition({ panelX + panelPadding + 8.f, y + 4.f });
+        win_.draw(label);
+
+        const std::string percent = std::to_string(static_cast<int>(std::lround(value * 100.f))) + "%";
+        sf::Text valueText(font_, percent, 18);
+        valueText.setFillColor(selected ? sf::Color(255, 220, 90) : sf::Color(180, 220, 255));
+        const sf::FloatRect valueBounds = valueText.getLocalBounds();
+        valueText.setPosition({ panelX + panelWidth - panelPadding - valueBounds.size.x - valueBounds.position.x - 8.f,
+                                y + 4.f });
+        win_.draw(valueText);
+    }
+
+    sf::Text help(font_, "Up/Down: select   Left/Right: -/+5%\nSpace: preview   F8: close", 15);
+    help.setFillColor(sf::Color(185, 195, 210));
+    help.setPosition({ panelX + panelPadding, panelY + panelHeight - 53.f });
+    win_.draw(help);
+}
+
 void UIManager::drawActiveDebugHitboxes()
 {
     const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
@@ -1723,6 +1797,11 @@ void UIManager::render()
         else
             drawActiveDebugHitboxes();
         drawMouseDebugInfo();
+    }
+    if (debugAudioMixer_)
+    {
+        win_.setView(win_.getDefaultView());
+        drawDebugAudioMixer();
     }
     win_.display();
 }

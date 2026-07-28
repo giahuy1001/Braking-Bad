@@ -1,7 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
-#include <SFML/Audio.hpp>
+#include "AudioManager.h"
 #include "UIState.h"
 #include "Button.h"
 #include "EndlessMap.h"
@@ -80,6 +80,7 @@ private:
     void drawMainMenuDebugOverlay();
     void drawActiveDebugHitboxes();
     void drawMouseDebugInfo();
+    void drawDebugAudioMixer();
     void drawBackIcon();
     void drawModalOverlay();
     void drawCenteredText(const std::string& s, float y,
@@ -121,6 +122,7 @@ private:
     void setSfxVolumeFromMouse(sf::Vector2i pixel);
     void setMusicVolumeFromMouse(sf::Vector2i pixel);
     void applyAudioVolumes();
+    bool handleDebugAudioMixerKey(const sf::Event::KeyPressed& key);
 
     // Members
     sf::RenderWindow& win_;
@@ -132,6 +134,8 @@ private:
     bool       assetsLoaded_ = false;
     std::string currentTheme_ = "spring";
     bool       debugUi_ = false;
+    bool       debugAudioMixer_ = false;
+    std::size_t selectedAudioCategory_ = 0;
     int        currentThemeIndex_ = 0;
     bool       draggingSfx_ = false;
     bool       draggingMusic_ = false;
@@ -191,19 +195,7 @@ private:
     ProgressStore prog_;
     SettingsStore sets_;
 
-    // --- AUDIO SYSTEM ---
-
-    // Streams (Long, looping audio)
-    sf::Music bgMusic_;
-    sf::Music trafficNoise_;
-
-    // Buffers (The raw data for short SFX)
-    sf::SoundBuffer crashBuf_;
-    sf::SoundBuffer catBuf_;
-    sf::SoundBuffer deerBuf_;
-
-    // Players (The objects that actually play the buffers)
-    std::optional<sf::Sound> crashSound_;
-    std::optional<sf::Sound> catSound_;
-    std::optional<sf::Sound> deerSound_;
+    // AudioManager giu toan bo asset va cong thuc mix; UI chi gui volume
+    // nguoi dung va input cua Debug Audio Mixer.
+    AudioManager audio_;
 };

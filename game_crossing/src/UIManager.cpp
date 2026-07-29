@@ -73,12 +73,12 @@ const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
 };
 
 const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
-const sf::FloatRect UIManager::kCharacterPanelBounds({107.f, 409.f}, {351.f, 347.f});
-const sf::FloatRect UIManager::kCharacterPrevBounds ({89.f, 562.f}, {43.f, 43.f});
-const sf::FloatRect UIManager::kCharacterNextBounds ({433.f, 562.f}, {43.f, 43.f});
-const sf::FloatRect UIManager::kThemePanelBounds    ({1414.f, 409.f}, {351.f, 347.f});
-const sf::FloatRect UIManager::kThemePrevBounds     ({1396.f, 562.f}, {43.f, 43.f});
-const sf::FloatRect UIManager::kThemeNextBounds     ({1740.f, 562.f}, {43.f, 43.f});
+const sf::FloatRect UIManager::kCharacterPanelBounds({141.f, 380.f}, {399.f, 399.f});
+const sf::FloatRect UIManager::kCharacterPrevBounds ({120.f, 554.f}, {48.f, 48.f});
+const sf::FloatRect UIManager::kCharacterNextBounds ({513.f, 554.f}, {48.f, 48.f});
+const sf::FloatRect UIManager::kThemePanelBounds    ({1374.f, 372.f}, {399.f, 399.f});
+const sf::FloatRect UIManager::kThemePrevBounds     ({1353.f, 546.f}, {47.f, 47.f});
+const sf::FloatRect UIManager::kThemeNextBounds     ({1746.f, 546.f}, {47.f, 47.f});
 const sf::FloatRect UIManager::kSfxTrackBounds      ({1383.f, 484.f}, {400.f, 20.f});
 const sf::FloatRect UIManager::kSfxDecBounds        ({1313.f, 469.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kSfxIncBounds        ({1803.f, 469.f}, {50.f, 50.f});
@@ -2217,3 +2217,4 @@ void UIManager::renderPause()
     drawCenteredText("PAUSED", 280, 56, sf::Color::White, true);
     drawCenteredText("Enter to resume   |   Esc to main menu", 360, 22, sf::Color(200, 200, 200));
 }
+

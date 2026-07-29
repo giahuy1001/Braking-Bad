@@ -46,6 +46,8 @@ public:
     void playAnimalSample(bool deer = false);
     void playUiCrash();
     void playPreview(AudioCategory category);
+    void playUiClick();
+    void playUiHover();
 
     static const char* displayName(AudioCategory category);
 
@@ -71,6 +73,8 @@ private:
     sf::Music trafficNoise_;
     sf::SoundBuffer crashBuf_, catBuf_, deerBuf_;
     std::optional<sf::Sound> crashSound_, catSound_, deerSound_;
+    sf::SoundBuffer clickBuf_, hoverBuf_;
+    std::optional<sf::Sound> clickSound_, hoverSound_;
 
     // Environment hien chua co asset rieng. Ban sao nay cho phep dung crash.mp3
     // lam preview tam thoi ma khong lam thay doi volume cua UISFX/crash that.

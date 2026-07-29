@@ -347,14 +347,23 @@ void UIManager::handleMainMenu(const sf::Event& e)
         if (mm->button == sf::Mouse::Button::Left)
         {
             const int button = menuButtonAt(mm->position);
-            if (button >= 0) activateMainMenuButton(static_cast<std::size_t>(button));
+            if (button >= 0)
+            {
+                audio_.playUiClick(); // MOUSE CLICK
+                activateMainMenuButton(static_cast<std::size_t>(button));
+            }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
         const int button = menuButtonAt(mm->position);
-        if (button >= 0) focusIdx_ = button;
+
+        // MOUSE HOVER: Only play if we entered a NEW valid button!
+        if (button >= 0 && button != focusIdx_) {
+            audio_.playUiHover();
+            focusIdx_ = button;
+        }
     }
 }
 
@@ -377,6 +386,7 @@ void UIManager::handleModeSel(const sf::Event& e)
             {
                 if (btns_[i].consumeClick(mp))
                 {
+                    audio_.playUiClick(); // MOUSE CLICK
                     focusIdx_ = i;
                     activateFocused();
                     return;
@@ -392,7 +402,14 @@ void UIManager::handleModeSel(const sf::Event& e)
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            if (btns_[i].contains(mp))
+            {
+                // MOUSE HOVER: Only play if we just crossed into this button
+                if (focusIdx_ != i) {
+                    audio_.playUiHover();
+                }
+                focusIdx_ = i;
+            }
         }
     }
 }

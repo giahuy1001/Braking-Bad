@@ -29,6 +29,8 @@ void AudioManager::loadAssets()
     }
     if (catBuf_.loadFromFile("assets/audio/cat.wav")) catSound_.emplace(catBuf_);
     if (deerBuf_.loadFromFile("assets/audio/deer.mp3")) deerSound_.emplace(deerBuf_);
+    if (clickBuf_.loadFromFile("assets/audio/click.mp3")) clickSound_.emplace(clickBuf_);
+    if (hoverBuf_.loadFromFile("assets/audio/hover.mp3")) hoverSound_.emplace(hoverBuf_);
     applyVolumes();
 }
 
@@ -64,6 +66,8 @@ void AudioManager::pauseVehicleAmbience() { trafficNoise_.pause(); }
 bool AudioManager::vehicleAmbiencePlaying() const { return trafficNoise_.getStatus() == sf::SoundSource::Status::Playing; }
 void AudioManager::playAnimalSample(bool deer) { if (deer ? deerSound_ : catSound_) (deer ? deerSound_ : catSound_)->play(); }
 void AudioManager::playUiCrash() { if (crashSound_) crashSound_->play(); }
+void AudioManager::playUiClick() { if (clickSound_) clickSound_->play(); }
+void AudioManager::playUiHover() { if (hoverSound_) hoverSound_->play(); }
 
 void AudioManager::playPreview(AudioCategory category)
 {
@@ -104,6 +108,8 @@ void AudioManager::applyVolumes()
     if (crashSound_) crashSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::UISFX));
     if (environmentPreviewSound_)
         environmentPreviewSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::EnvironmentSFX));
+    if (clickSound_) clickSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::UISFX));
+    if (hoverSound_) hoverSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::UISFX));
 }
 
 void AudioManager::logBaseVolumes() const
@@ -113,4 +119,5 @@ void AudioManager::logBaseVolumes() const
               << "% Animals=" << baseVolume(AudioCategory::AnimalSFX) * 100.f
               << "% Environment=" << baseVolume(AudioCategory::EnvironmentSFX) * 100.f
               << "% UI=" << baseVolume(AudioCategory::UISFX) * 100.f << "%\n";
+
 }

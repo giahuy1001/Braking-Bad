@@ -239,7 +239,7 @@ void UIManager::handleEvents()
             }
 
             // Switch bgms using "N" key
-            if (key->code == sf::Keyboard::Key::N) {
+            if (key->code == sf::Keyboard::Key::F9) {
                 audio_.playUiClick();
                 audio_.cycleBgm(1); // Skips to the next track instantly
                 return;
@@ -250,7 +250,7 @@ void UIManager::handleEvents()
             if (debugAudioMixer_ && handleDebugAudioMixerKey(*key))
                 continue;
 
-            if (key->code == sf::Keyboard::Key::F3 || key->code == sf::Keyboard::Key::D)
+            if (key->code == sf::Keyboard::Key::F7)
             {
                 debugUi_ = !debugUi_;
                 std::cout << "[UI Debug] " << (debugUi_ ? "enabled" : "disabled") << '\n';

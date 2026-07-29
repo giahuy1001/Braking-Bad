@@ -18,10 +18,8 @@ AudioManager::AudioManager() = default;
 void AudioManager::loadAssets()
 {
     // Background & Traffic streams
-    if (bgMusic_.openFromFile("assets/audio/bgm.wav")) {
-        bgMusic_.setLooping(true);
-        bgMusic_.play();
-    }
+    setBgmTrack(0);
+
     if (trafficNoise_.openFromFile("assets/audio/traffic.wav"))
         trafficNoise_.setLooping(true);
 
@@ -130,4 +128,38 @@ void AudioManager::logBaseVolumes() const
               << "% Environment=" << baseVolume(AudioCategory::EnvironmentSFX) * 100.f
               << "% UI=" << baseVolume(AudioCategory::UISFX) * 100.f << "%\n";
 
+}
+
+void AudioManager::setBgmTrack(std::size_t index)
+{
+    // Safety check: ensure the index exists in our playlist
+    if (index >= bgmPlaylist_.size()) return;
+
+    currentBgmIndex_ = index;
+
+    // Stop the current song and load the new one
+    bgMusic_.stop();
+    if (bgMusic_.openFromFile(bgmPlaylist_[currentBgmIndex_])) {
+        bgMusic_.setLooping(true);
+
+        // Re-apply the volume for the new track
+        bgMusic_.setVolume(userMusicVolume_ * baseVolume(AudioCategory::Music));
+
+        bgMusic_.play();
+    }
+}
+
+void AudioManager::cycleBgm(int direction)
+{
+    // Calculate the new index, wrapping around if we reach the end or beginning
+    int newIndex = static_cast<int>(currentBgmIndex_) + direction;
+
+    if (newIndex >= static_cast<int>(bgmPlaylist_.size())) {
+        newIndex = 0; // Wrap to start
+    }
+    else if (newIndex < 0) {
+        newIndex = static_cast<int>(bgmPlaylist_.size()) - 1; // Wrap to end
+    }
+
+    setBgmTrack(static_cast<std::size_t>(newIndex));
 }

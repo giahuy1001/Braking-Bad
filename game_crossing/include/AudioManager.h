@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include <SFML/Audio.hpp>
 #include <array>
 #include <optional>
+#include <vector>
 
 // Cac kenh dung de can bang asset khi debug. Day KHONG phai la thanh
 // am luong nguoi dung: base volume la he so 0.0 - 1.0 cua lap trinh vien.
@@ -39,6 +40,10 @@ public:
     void setBaseVolume(AudioCategory category, float multiplier);
     void adjustBaseVolume(AudioCategory category, float delta);
     float baseVolume(AudioCategory category) const;
+
+    // --- Playlist Management ---
+    void setBgmTrack(std::size_t index);
+    void cycleBgm(int direction); // e.g., +1 for next, -1 for previous
 
     void startVehicleAmbience();
     void pauseVehicleAmbience();
@@ -79,4 +84,14 @@ private:
     // Environment hien chua co asset rieng. Ban sao nay cho phep dung crash.mp3
     // lam preview tam thoi ma khong lam thay doi volume cua UISFX/crash that.
     std::optional<sf::Sound> environmentPreviewSound_;
+
+    // --- BGM Tracker ---
+    std::size_t currentBgmIndex_ = 0;
+
+    // Define your playlist here! Make sure these files exist in your folder.
+    const std::vector<std::string> bgmPlaylist_ = {
+        "assets/audio/nawhij.wav",                  // Track 0
+        "assets/audio/Relaxed Scene.wav",           // Track 1
+        "assets/audio/Seasons (guitar cover).wav"   // Track 2
+    };
 };

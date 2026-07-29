@@ -179,9 +179,13 @@
   </ItemGroup>
   <ItemGroup>
     <Media Include="assets\audio\bgm.mp3" />
+    <Media Include="assets\audio\bgm.wav" />
     <Media Include="assets\audio\cat.wav" />
     <Media Include="assets\audio\crash.mp3" />
     <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\nawhij.wav" />
+    <Media Include="assets\audio\Relaxed Scene.wav" />
+    <Media Include="assets\audio\Seasons (guitar cover).wav" />
     <Media Include="assets\audio\traffic.wav" />
     <Media Include="assets\audio\UI.wav" />
   </ItemGroup>

@@ -248,6 +248,13 @@ void UIManager::handleEvents()
                 continue;
             }
 
+            // Switch bgms using "N" key
+            if (key->code == sf::Keyboard::Key::N) {
+                audio_.playUiClick();
+                audio_.cycleBgm(1); // Skips to the next track instantly
+                return;
+            }
+
             // Khi mixer dang mo, cac phim dieu khien no khong duoc roi xuong
             // gameplay (vi du Up/Down se khong lam Player di chuyen).
             if (debugAudioMixer_ && handleDebugAudioMixerKey(*key))

@@ -24,8 +24,3 @@ void CCat::move(float dt) {
         x -= currentSpeed * dt;
     }
 }
-
-void CCat::tell() {
-    // Mimics the sound they make in real life
-    std::cout << "Meow!" << std::endl;
-}

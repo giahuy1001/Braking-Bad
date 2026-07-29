@@ -138,7 +138,7 @@ UIManager::UIManager(sf::RenderWindow& window)
     // Cột 6 (index 5) và Hàng 9 đếm từ dưới lên (tâm của ô trên cùng)
     trafficLightSprite_.setPosition({ Grid::columnCenter(5), 0.f });
 
-    setTheme("spring");
+    setTheme("winter");
 
     cfg_ = sets_.load();
     cfg_.volume = std::clamp(cfg_.volume, 0, 100);
@@ -163,7 +163,8 @@ UIManager::~UIManager() = default;
 
 bool UIManager::setTheme(const std::string& seasonName)
 {
-    if (seasonName.empty()) return false;
+    if (std::find(kThemeNames.begin(), kThemeNames.end(), seasonName) == kThemeNames.end())
+        return false;
 
     // Asset folders in this project currently start with a capital letter,
     // while the public API accepts the documented lowercase names. Try both.
@@ -182,9 +183,10 @@ bool UIManager::setTheme(const std::string& seasonName)
         return false;
     };
 
-    sf::Texture newMain, newSetting, newGraphic;
+    sf::Texture newMain, newSetting, newGraphic, newBackButton, newSettingButton, newPause;
     if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
-        !load(newGraphic, "Graphic", false))
+        !load(newGraphic, "Graphic", false) || !load(newBackButton, "BackButton", false) ||
+        !load(newSettingButton, "SettingButton", false))
     {
         std::cerr << "[UIManager] failed to load theme '" << seasonName
                   << "' from assets/theme/<season>/\n";
@@ -194,6 +196,14 @@ bool UIManager::setTheme(const std::string& seasonName)
     bgTex_ = std::move(newMain);
     settingBgTex_ = std::move(newSetting);
     graphicBgTex_ = std::move(newGraphic);
+    backButtonTex_ = std::move(newBackButton);
+    settingButtonTex_ = std::move(newSettingButton);
+    pauseAssetLoaded_ = load(newPause, "Pause", false);
+    if (pauseAssetLoaded_)
+        pauseTex_ = std::move(newPause);
+    else
+        std::cerr << "[UIManager] optional Pause.png is missing for theme '"
+                  << seasonName << "'; using the normal seasonal background.\n";
     currentTheme_ = seasonName;
     if (!mapBackground_.loadTheme(currentTheme_))
         std::cerr << "[UIManager] no gameplay maps found for theme '" << currentTheme_ << "'\n";
@@ -207,11 +217,10 @@ bool UIManager::setTheme(const std::string& seasonName)
 // ---------------------------------------------------------------------
 void UIManager::run()
 {
-    sf::Clock frameClock;
     while (win_.isOpen())
     {
         handleEvents();
-        update(frameClock.restart().asSeconds());
+        update(clock_.restart().asSeconds());
         render();
     }
 }
@@ -644,14 +653,7 @@ void UIManager::handleHelp(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Enter) {
-            audio_.playUiClick();
-            handleBack();
-        }
-    }
-    if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
-    {
-        if (mm->button == sf::Mouse::Button::Left) {
+        if (k->code == sf::Keyboard::Key::Escape) {
             audio_.playUiClick();
             handleBack();
         }
@@ -856,28 +858,8 @@ void UIManager::handlePause(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Escape)
         {
             audio_.playUiClick();
-            // TẠO BẢN LƯU TRƯỚC KHI THOÁT
-            RunRecord r;
-            r.name = ctx_.pendingName;
-
-            if (ctx_.mode == StateContext::Mode::Classic) {
-                r.mode = GameMode::Classic;
-                r.level = ctx_.level;
-                r.elapsedSec = static_cast<int>(elapsedPlaySec_);
-                r.score = 0;
-            }
-            else {
-                r.mode = GameMode::Endless;
-                r.level = 0;
-                r.elapsedSec = static_cast<int>(elapsedPlaySec_);
-                r.score = ctx_.endlessScore;
-            }
-            r.savedAtUnix = nowUnix();
-            r.playerX = player_.getPosition().x;
-            r.playerY = player_.getPosition().y;
-            r.cameraY = cameraY_;
-            saves_.push(r);
-            handleBack();
+            savePausedRunAndExit();
+            return;
         }
         if (k->code == sf::Keyboard::Key::Enter)
         {
@@ -887,6 +869,71 @@ void UIManager::handlePause(const sf::Event& e)
                 : UIState::ClassicPlay);
         }
     }
+    if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>();
+        mm && mm->button == sf::Mouse::Button::Left)
+    {
+        const sf::Vector2f mouse(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+        if (pauseResumeBounds().contains(mouse)) {
+            audio_.playUiClick();
+            setState(ctx_.mode == StateContext::Mode::Endless ? UIState::EndlessPlay : UIState::ClassicPlay);
+            return;
+        }
+        if (pauseOutBounds().contains(mouse)) {
+            audio_.playUiClick();
+            savePausedRunAndExit();
+            return;
+        }
+    }
+}
+
+void UIManager::savePausedRunAndExit()
+{
+    RunRecord record;
+    record.name = ctx_.pendingName;
+    record.mode = ctx_.mode == StateContext::Mode::Classic ? GameMode::Classic : GameMode::Endless;
+    record.level = record.mode == GameMode::Classic ? ctx_.level : 0;
+    record.elapsedSec = static_cast<int>(elapsedPlaySec_);
+    record.score = record.mode == GameMode::Classic ? 0 : ctx_.endlessScore;
+    record.savedAtUnix = nowUnix();
+    record.playerX = player_.getPosition().x;
+    record.playerY = player_.getPosition().y;
+    record.cameraY = cameraY_;
+    saves_.push(record);
+    setState(UIState::MainMenu);
+}
+
+sf::FloatRect UIManager::pauseOverlayBounds() const
+{
+    constexpr sf::Vector2f overlaySize(1200.f, 870.f); // 40:29, fixed render size.
+    const sf::Vector2u windowSize = win_.getSize();
+    const sf::Vector2f windowSizeF(static_cast<float>(windowSize.x), static_cast<float>(windowSize.y));
+    return { { (windowSizeF.x - overlaySize.x) * .5f, (windowSizeF.y - overlaySize.y) * .5f }, overlaySize };
+}
+
+sf::FloatRect UIManager::pauseResumeBounds() const
+{
+    const sf::FloatRect overlay = pauseOverlayBounds();
+    // Button artwork is embedded in Pause.png; this transparent rectangle is
+    // only the interaction region (and is drawn by F7 debug mode).
+    return { { overlay.position.x + 372.f, overlay.position.y + 307.f }, { 477.f, 205.f } };
+}
+
+sf::FloatRect UIManager::pauseOutBounds() const
+{
+    const sf::FloatRect overlay = pauseOverlayBounds();
+    return { { overlay.position.x + 372.f, overlay.position.y + 560.f }, { 477.f, 205.f } };
+}
+
+void UIManager::capturePausedFrame()
+{
+    const sf::Vector2u windowSize = win_.getSize();
+    if (windowSize.x == 0 || windowSize.y == 0) { pauseFrameValid_ = false; return; }
+    if (pauseFrameTex_.getSize() != windowSize && !pauseFrameTex_.resize(windowSize)) {
+        pauseFrameValid_ = false;
+        return;
+    }
+    pauseFrameTex_.update(win_); // GPU copy of the last displayed gameplay frame; no disk I/O.
+    pauseFrameValid_ = true;
 }
 
 void UIManager::handleModal(const sf::Event& e)
@@ -1215,9 +1262,16 @@ void UIManager::setState(UIState s)
     const bool enteringEndless = s == UIState::EndlessPlay &&
                                  state_ != UIState::EndlessPlay && state_ != UIState::Pause;
 
-    state_  = s;
+    const UIState previousState = state_;
+    if (s == UIState::Pause &&
+        (previousState == UIState::ClassicPlay || previousState == UIState::EndlessPlay))
+        capturePausedFrame();
+
+    state_ = s;
     if (enteringClassic || enteringEndless)
         resetGameplay();
+    if (s == UIState::Pause || previousState == UIState::Pause)
+        clock_.restart(); // Do not apply time spent in the pause menu as gameplay dt.
     focusIdx_ = 0;
     rebuildButtons();
 }
@@ -1602,11 +1656,7 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::Help:
-    {
-        add({ (UI_W - BTN_W) * 0.5f, 600 }, { BTN_W, BTN_H }, "Back",
-            Button::Style::Subtle, [this] { handleBack(); });
         break;
-    }
 
     default:
         break;
@@ -1807,6 +1857,22 @@ void UIManager::drawActiveDebugHitboxes()
         box(kSfxTrackBounds); box(kSfxDecBounds); box(kSfxIncBounds);
         box(kMusicTrackBounds); box(kMusicDecBounds); box(kMusicIncBounds); box(kSettingOkBounds);
     }
+
+    // Global seasonal BackButton hitbox (all non-gameplay screens that show it).
+    if (state_ != UIState::Boot && state_ != UIState::MainMenu && state_ != UIState::Pause &&
+        state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
+        box(sf::FloatRect({ 1721.f, 24.f }, { 175.f, 77.f }));
+
+    if (state_ == UIState::Pause) {
+        for (const sf::FloatRect& physical : { pauseResumeBounds(), pauseOutBounds() }) {
+            sf::RectangleShape shape(physical.size);
+            shape.setPosition(physical.position);
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineThickness(2.f);
+            shape.setOutlineColor(physical.contains(point) ? sf::Color::Green : sf::Color::Red);
+            win_.draw(shape);
+        }
+    }
 }
 
 void UIManager::drawBackIcon()
@@ -1814,15 +1880,28 @@ void UIManager::drawBackIcon()
     if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause ||
         state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay)
         return;
-    Button b(font_, { BACK_X, BACK_Y }, { BACK_SIZE, BACK_SIZE }, "<", Button::Style::IconOnly);
+    // BackButton is authored in the seasonal 1920x1080 layout.  Draw and
+    // hit-test it in physical pixels so it stays in the top-right corner at
+    // every window size.
+    // 25:11 visual and interaction ratio, anchored to the authored 1920x1080 UI.
+    const sf::FloatRect base({ 1721.f, 24.f }, { 175.f, 77.f });
+    const sf::FloatRect bounds = scaledBaseRect(base);
+    win_.setView(win_.getDefaultView());
     if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
     {
-        sf::Vector2f mp = (sf::Vector2f)sf::Mouse::getPosition(win_);
-        if (b.contains(mp)) handleBack();
+        const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+        if (bounds.contains({ static_cast<float>(mouse.x), static_cast<float>(mouse.y) })) handleBack();
     }
-    if (e_isMouseOverBack) b.setFocused(true);
-    e_isMouseOverBack = b.contains((sf::Vector2f)sf::Mouse::getPosition(win_));
-    b.draw(win_, font_);
+    const sf::Vector2u textureSize = backButtonTex_.getSize();
+    if (textureSize.x != 0 && textureSize.y != 0) {
+        sf::Sprite back(backButtonTex_);
+        back.setScale({ bounds.size.x / textureSize.x, bounds.size.y / textureSize.y });
+        back.setPosition(bounds.position);
+        win_.draw(back);
+    }
+    const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+    e_isMouseOverBack = bounds.contains({ static_cast<float>(mouse.x), static_cast<float>(mouse.y) });
+    win_.setView(uiView_);
 }
 
 void UIManager::drawModalOverlay()
@@ -1869,7 +1948,24 @@ void UIManager::drawCenteredText(const std::string& s, float y, unsigned int siz
 void UIManager::render()
 {
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
-    if (gameplay)
+    const bool paused = state_ == UIState::Pause;
+    if (paused)
+    {
+        // The world was captured once on entering Pause. Do not redraw maps,
+        // actors or HUD while the modal is open.
+        win_.setView(win_.getDefaultView());
+        win_.clear(sf::Color(21, 25, 31));
+        if (pauseFrameValid_ && pauseFrameTex_.getSize().x != 0) {
+            sf::Sprite frozenFrame(pauseFrameTex_);
+            const sf::Vector2u frameSize = pauseFrameTex_.getSize();
+            const sf::Vector2u windowSize = win_.getSize();
+            frozenFrame.setScale({ windowSize.x / static_cast<float>(frameSize.x),
+                                   windowSize.y / static_cast<float>(frameSize.y) });
+            win_.draw(frozenFrame);
+        }
+        win_.setView(uiView_);
+    }
+    else if (gameplay)
     {
         win_.setView(win_.getDefaultView());
         win_.clear(sf::Color(21, 25, 31));
@@ -1996,7 +2092,16 @@ void UIManager::renderSetting()
         const sf::FloatRect b = scaledBaseRect(base);
         sf::RectangleShape track(b.size); track.setPosition(b.position); track.setFillColor(sf::Color(20,20,20,190)); win_.draw(track);
         sf::RectangleShape fill({b.size.x * value / 100.f, b.size.y}); fill.setPosition(b.position); fill.setFillColor(sf::Color(255,215,0,180)); win_.draw(fill);
-        sf::CircleShape knob(13.f); knob.setOrigin({13.f,13.f}); knob.setPosition({b.position.x + b.size.x * value / 100.f,b.position.y + b.size.y*.5f}); knob.setFillColor(sf::Color::White); win_.draw(knob);
+        if (settingButtonTex_.getSize().x != 0 && settingButtonTex_.getSize().y != 0) {
+            sf::Sprite knob(settingButtonTex_);
+            const sf::Vector2u knobSize = settingButtonTex_.getSize();
+            const float knobWidth = std::max(21.f, b.size.y * 1.4f);
+            const float knobHeight = knobWidth * 10.f / 7.f; // SettingButton ratio: 7:10.
+            knob.setOrigin({ knobSize.x * 0.5f, knobSize.y * 0.5f });
+            knob.setScale({ knobWidth / knobSize.x, knobHeight / knobSize.y });
+            knob.setPosition({ b.position.x + b.size.x * value / 100.f, b.position.y + b.size.y * .5f });
+            win_.draw(knob);
+        }
         sf::Text label(font_, name + ": " + std::to_string(value) + "%", 22); label.setFillColor(sf::Color::White); label.setPosition({b.position.x,b.position.y-32.f}); win_.draw(label);
     };
     slider(kSfxTrackBounds, cfg_.volume, "SFX");
@@ -2010,8 +2115,8 @@ void UIManager::renderGraphic()
     const sf::FloatRect left = scaledBaseRect(kCharacterPanelBounds), right = scaledBaseRect(kThemePanelBounds);
     sf::Text a(font_, "CHARACTER: " + CharacterRenderer::name(ctx_.selectedCharacterID), 28); a.setFillColor(sf::Color::White); a.setPosition({left.position.x+35.f,left.position.y+35.f}); win_.draw(a);
     sf::Text b(font_, "THEME: " + kThemeNames[currentThemeIndex_], 28); b.setFillColor(sf::Color::White); b.setPosition({right.position.x+35.f,right.position.y+35.f}); win_.draw(b);
-    auto arrow = [&](const sf::FloatRect& base, const char* text) { const sf::FloatRect r=scaledBaseRect(base); sf::Text t(font_, text, 44); t.setFillColor(sf::Color::White); t.setPosition({r.position.x+16.f,r.position.y}); win_.draw(t); };
-    arrow(kCharacterPrevBounds,"<"); arrow(kCharacterNextBounds,">"); arrow(kThemePrevBounds,"<"); arrow(kThemeNextBounds,">");
+    // The four navigation hitboxes remain active in handleGraphic(), but the
+    // old '<' and '>' glyphs are intentionally no longer rendered.
     win_.setView(uiView_);
 }
 
@@ -2272,7 +2377,18 @@ void UIManager::renderGameOver()
 
 void UIManager::renderPause()
 {
-    drawCenteredText("PAUSED", 280, 56, sf::Color::White, true);
-    drawCenteredText("Enter to resume   |   Esc to main menu", 360, 22, sf::Color(200, 200, 200));
+    if (!pauseAssetLoaded_ || pauseTex_.getSize().x == 0 || pauseTex_.getSize().y == 0)
+        return;
+
+    // Exact 1200x870 (40:29) centered Pause.png. Resume/Out are deliberately
+    // not drawn: their artwork lives in this image and their hitboxes are invisible.
+    win_.setView(win_.getDefaultView());
+    const sf::FloatRect bounds = pauseOverlayBounds();
+    sf::Sprite overlay(pauseTex_);
+    const sf::Vector2u textureSize = pauseTex_.getSize();
+    overlay.setScale({ bounds.size.x / textureSize.x, bounds.size.y / textureSize.y });
+    overlay.setPosition(bounds.position);
+    win_.draw(overlay);
+    win_.setView(uiView_);
 }
 

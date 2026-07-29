@@ -124,6 +124,11 @@ private:
     void setSfxVolumeFromMouse(sf::Vector2i pixel);
     void setMusicVolumeFromMouse(sf::Vector2i pixel);
     void applyAudioVolumes();
+    void savePausedRunAndExit();
+    void capturePausedFrame();
+    sf::FloatRect pauseOverlayBounds() const;
+    sf::FloatRect pauseResumeBounds() const;
+    sf::FloatRect pauseOutBounds() const;
     bool handleDebugAudioMixerKey(const sf::Event::KeyPressed& key);
 
     // Members
@@ -132,10 +137,14 @@ private:
     sf::Font   font_;
     sf::Text   debugText_;
     bool       fontLoaded_ = false;
-    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, logoTex_, iconsTex_;
+    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, pauseTex_, backButtonTex_,
+                settingButtonTex_, logoTex_, iconsTex_;
+    sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
     bool       assetsLoaded_ = false;
-    std::string currentTheme_ = "spring";
+    bool       pauseAssetLoaded_ = false;
+    bool       pauseFrameValid_ = false;
+    std::string currentTheme_ = "winter";
     bool       debugUi_ = false;
     bool       debugAudioMixer_ = false;
     std::size_t selectedAudioCategory_ = 0;
@@ -166,7 +175,7 @@ private:
 
     std::string nameBuffer_;
     float       bootTimer_ = 0.f;
-    sf::Clock   clock_;
+    sf::Clock   clock_; // Restarted at Pause/Resume boundaries to discard stale dt.
 
     // Gameplay world state. World Y decreases while moving toward the top.
     EndlessMap endlessMap_;

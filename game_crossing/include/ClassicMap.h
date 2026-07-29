@@ -27,7 +27,7 @@ public:
             block.endY = 0;
 
             // Đọc 1 file tương ứng với level
-            loadMapFromFile(level, block.lanes, block.manholeCols);
+            loadMapFromFile(level, block.lanes, block.manholeCols, block.shieldCols);
 
             m_blocks.push_back(block);
         }
@@ -55,24 +55,23 @@ public:
                 if (i == 0)
                 {
                     // Block dưới: Đọc map chính bằng số (ví dụ: map_level_6.txt)
-                    loadMapFromFile(level, block.lanes, block.manholeCols);
+                    loadMapFromFile(level, block.lanes, block.manholeCols, block.shieldCols);
                 }
                 else
                 {
                     // Block trên: Ghép chuỗi để đọc map phụ bằng chữ (ví dụ: map_level_6.1.txt)
                     std::string filename = "assets/map/map_level_" + std::to_string(level) + ".1.txt";
-                    loadMapFromFile(filename, block.lanes, block.manholeCols);
+                    loadMapFromFile(filename, block.lanes, block.manholeCols, block.shieldCols);
                 }
 
                 m_blocks.push_back(block);
             }
         }
     }
-
-
-    const std::vector<MapBlock>& getBlocks() const { return m_blocks; }
     float topLimit() const { return m_blocks.empty() ? 0.f : m_blocks.back().startY; }
     float bottomLimit() const { return m_blocks.empty() ? 0.f : m_blocks.front().endY; }
+    std::vector<MapBlock>& getMutableBlocks() { return m_blocks; }
+    const std::vector<MapBlock>& getBlocks() const { return m_blocks; }
 
 private:
     // Stored bottom-to-top so block 0 is the starting block.

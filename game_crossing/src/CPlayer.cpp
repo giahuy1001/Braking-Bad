@@ -1,4 +1,4 @@
-#include "CPlayer.h"
+﻿#include "CPlayer.h"
 #include "CharacterRenderer.h"
 #include "Grid.h"
 #include <algorithm>
@@ -16,12 +16,9 @@ void CPlayer::setSpawnPosition(sf::Vector2f pos)
     spawnPosition_ = pos;
 }
 
-void CPlayer::resetPosition()
-{
-    // 2. USE BASE CLASS COORDINATES
-    x = spawnPosition_.x;
-    y = spawnPosition_.y;
-    moving_ = false;
+void CPlayer::resetPosition() {
+    x = spawnPosition_.x; y = spawnPosition_.y;
+    moving_ = false; hasShield_ = false; invincibleTimer_ = 0.f;
     revive();
 }
 
@@ -30,10 +27,8 @@ void CPlayer::setSkin(int skinID)
     skinID_ = CharacterRenderer::normalizeID(skinID);
 }
 
-void CPlayer::revive()
-{
-    alive_ = true;
-    moving_ = false;
+void CPlayer::revive() {
+    alive_ = true; moving_ = false; hasShield_ = false; invincibleTimer_ = 0.f;
 }
 
 void CPlayer::kill()
@@ -105,16 +100,17 @@ void CPlayer::handleInput(sf::Keyboard::Key key)
     }
 }
 
-void CPlayer::update(float /*dt*/)
-{
-    // Movement is intentionally committed on each KeyPressed event, matching
-    // the existing game. No interpolation is introduced by this refactor.
+void CPlayer::update(float dt) {
+    if (invincibleTimer_ > 0.f) invincibleTimer_ -= dt;
     moving_ = false;
 }
 
 // 3. RENDER RENAMED TO DRAW: To properly override CGameObject's virtual function
-void CPlayer::draw(sf::RenderWindow& window, float cameraY)
-{
+void CPlayer::draw(sf::RenderWindow& window, float cameraY) {
+    if (invincibleTimer_ > 0.f) {
+        // Nhấp nháy (tàng hình đứt quãng mỗi 0.1s)
+        if (static_cast<int>(invincibleTimer_ * 15.f) % 2 == 0) return;
+    }
     CharacterRenderer::draw(window, skinID_, { x, y - cameraY }, radius_);
 }
 
@@ -151,3 +147,8 @@ bool CPlayer::isImpact(CAnimal* animal) {
     // SFML 3.0.2 AABB intersection check
     return this->getBounds().findIntersection(animal->getBounds()).has_value();
 }
+
+void CPlayer::giveShield() { hasShield_ = true; }
+bool CPlayer::hasShield() const { return hasShield_; }
+void CPlayer::consumeShield() { hasShield_ = false; invincibleTimer_ = 1.0f; }
+bool CPlayer::isInvincible() const { return invincibleTimer_ > 0.f; }

@@ -172,6 +172,15 @@
     <Media Include="assets\audio\Seasons (guitar cover).wav">
       <Filter>Resource Files</Filter>
     </Media>
+    <Media Include="assets\audio\crash.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\deer.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\fall.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\audio\bgm.m4a" />

@@ -28,9 +28,6 @@ constexpr int LANES_PER_BLOCK = 9;
 std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
     bool isStartingBlock);
 
-bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
-bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
-
 struct MapBlock {
     std::uint32_t blockID{ 0 };
     // Stem of the artwork file used by this block, e.g. "map_level_6.1".
@@ -43,12 +40,14 @@ struct MapBlock {
     std::array<LaneType, LANES_PER_BLOCK> lanes{};
 
     std::array<int, LANES_PER_BLOCK> manholeCols = { -1, -1, -1, -1, -1, -1, -1, -1, -1 };
+    std::array<int, LANES_PER_BLOCK> shieldCols = { -1, -1, -1, -1, -1, -1, -1, -1, -1 }; // THÊM DÒNG NÀY
 
     float height() const { return endY - startY; }
     bool contains(float worldY) const { return worldY >= startY && worldY <= endY; }
 };
 
-bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes);
+bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes, std::array<int, LANES_PER_BLOCK>& outShields);
+bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes, std::array<int, LANES_PER_BLOCK>& outShields);
 
 class BiomeGenerator {
 public:
@@ -76,8 +75,9 @@ public:
     void reset();
     void setAvailableMapLevels(std::vector<int> levels);
 
-    const std::deque<MapBlock>& getBlocks() const { return m_blocks; }
     float blockHeight() const { return m_blockHeight; }
+    const std::deque<MapBlock>& getBlocks() const { return m_blocks; }
+    std::deque<MapBlock>& getMutableBlocks() { return m_blocks; }
 
 private:
     void spawnBlockAbove();

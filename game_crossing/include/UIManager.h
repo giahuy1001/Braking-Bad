@@ -183,6 +183,7 @@ private:
     TrafficLight currentLight_ = TrafficLight::Green;
     float trafficLightTimer_ = 0.f;
     sf::Texture texTrafficGreen_, texTrafficYellow_, texTrafficRed_;
+    sf::Texture texShieldItem_;
     sf::Sprite trafficLightSprite_;
 
     // Per-screen scratch state

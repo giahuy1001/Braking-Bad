@@ -39,6 +39,11 @@ public:
     bool isImpact(CVehicle* vehicle);
     bool isImpact(CAnimal* animal);
 
+    void giveShield();
+    bool hasShield() const;
+    void consumeShield();
+    bool isInvincible() const;
+
 private:
     void moveByGridStep(float dx, float dy);
 
@@ -50,4 +55,7 @@ private:
     int skinID_ = 1;
     bool alive_ = true;
     bool moving_ = false;
+
+    bool hasShield_ = false;
+    float invincibleTimer_ = 0.f;
 };

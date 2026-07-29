@@ -42,7 +42,7 @@ std::array<LaneType, LANES_PER_BLOCK> generateLaneLayout(std::uint32_t seed,
     return lanes;
 }
 
-bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes)
+bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes, std::array<int, LANES_PER_BLOCK>& outShields)
 {
     std::ifstream file(filename);
     if (!file.is_open()) return false;
@@ -51,6 +51,7 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
     // from a previous block.
     outLanes.fill(LaneType::Safe);
     outManholes.fill(-1);
+    outShields.fill(-1);
 
     std::string line;
     for (int i = 0; i < LANES_PER_BLOCK && std::getline(file, line); ++i)
@@ -61,17 +62,27 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
         else if (line[0] == 'A') outLanes[i] = LaneType::Animal;
         else if (line[0] == 'S') {
             outLanes[i] = LaneType::Safe;
-            // Xử lý đọc cột nắp cống nếu có dấu ':'
             size_t colonPos = line.find(':');
             if (colonPos != std::string::npos) {
-                std::stringstream ss(line.substr(colonPos + 1));
-                int fileColumn;
-                if (ss >> fileColumn) {
-                    // Level text uses human-readable columns 1..11, while
-                    // Grid and playerCol use C++ indices 0..10.
-                    const int gridColumn = fileColumn - 1;
-                    if (gridColumn >= 0 && gridColumn < Grid::COLUMNS)
-                        outManholes[i] = gridColumn;
+                std::string valStr = line.substr(colonPos + 1);
+                valStr.erase(0, valStr.find_first_not_of(" \t")); // Xóa dấu cách thừa
+                if (!valStr.empty()) {
+                    if (valStr[0] == 'K') { // LÀ KHIÊN
+                        try {
+                            int gridColumn = std::stoi(valStr.substr(1)) - 1;
+                            if (gridColumn >= 0 && gridColumn < Grid::COLUMNS)
+                                outShields[i] = gridColumn;
+                        }
+                        catch (...) {}
+                    }
+                    else { // LÀ CỐNG
+                        try {
+                            int gridColumn = std::stoi(valStr) - 1;
+                            if (gridColumn >= 0 && gridColumn < Grid::COLUMNS)
+                                outManholes[i] = gridColumn;
+                        }
+                        catch (...) {}
+                    }
                 }
             }
         }
@@ -79,9 +90,9 @@ bool loadMapFromFile(const std::string& filename, std::array<LaneType, LANES_PER
     return true;
 }
 
-bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes)
+bool loadMapFromFile(int levelID, std::array<LaneType, LANES_PER_BLOCK>& outLanes, std::array<int, LANES_PER_BLOCK>& outManholes, std::array<int, LANES_PER_BLOCK>& outShields)
 {
-    return loadMapFromFile("assets/map/map_level_" + std::to_string(levelID) + ".txt", outLanes, outManholes);
+    return loadMapFromFile("assets/map/map_level_" + std::to_string(levelID) + ".txt", outLanes, outManholes, outShields);
 }
 
 BiomeGenerator::BiomeGenerator(std::uint32_t seed)
@@ -163,17 +174,36 @@ void EndlessMap::spawnBlockAbove()
     block.startY = m_nextEndY - m_blockHeight;
     block.lanes.fill(LaneType::Safe);
     block.manholeCols.fill(-1);
+
+    // --- ĐOẠN CODE CHỌN MAP NGẪU NHIÊN MỚI ---
+    // Khai báo danh sách 15 map dưới dạng chuỗi ký tự (bao gồm cả các map x.1)
+    static const std::vector<std::string> availableMaps = {
+        "1", "2", "3", "4", "5",
+        "6", "6.1", "7", "7.1", "8",
+        "8.1", "9", "9.1", "10", "10.1"
+    };
+
+    // Khởi tạo bộ sinh số ngẫu nhiên
     std::random_device rd;
     std::mt19937 localRng(rd());
-    const int randomMap = m_availableMapLevels.empty()
-        ? std::uniform_int_distribution<int>(1, 10)(localRng)
-        : m_availableMapLevels[std::uniform_int_distribution<std::size_t>(
-            0, m_availableMapLevels.size() - 1)(localRng)];
-    block.mapImageKey = "map_level_" + std::to_string(randomMap);
 
-    if (!loadMapFromFile(randomMap, block.lanes, block.manholeCols)) {
+    // Chọn ngẫu nhiên 1 index từ 0 đến 14 (tương ứng với 15 map)
+    std::uniform_int_distribution<std::size_t> dist(0, availableMaps.size() - 1);
+    std::string chosenMap = availableMaps[dist(localRng)];
+
+    // Gán tên file ảnh để hệ thống đồ họa vẽ đúng (ví dụ: map_level_6.1)
+    block.mapImageKey = "map_level_" + chosenMap;
+
+    // Tải cấu hình làn đường (Xe/Động vật/An toàn) và nắp cống từ file txt tương ứng
+    std::string txtFilePath = "assets/map/map_level_" + chosenMap + ".txt";
+
+    // Gọi hàm loadMapFromFile phiên bản nhận tham số std::string
+    if (!loadMapFromFile(txtFilePath, block.lanes, block.manholeCols, block.shieldCols)) {
+        // Nếu không tìm thấy file txt, sinh cấu hình an toàn mặc định để không crash game
         block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);
     }
+    // -----------------------------------------
+
     m_nextEndY = block.startY;
     m_blocks.push_front(block);
 }

@@ -100,7 +100,7 @@ const sf::FloatRect UIManager::kMusicDecBounds      ({1130.f, 465.f}, {50.f, 50.
 const sf::FloatRect UIManager::kMusicIncBounds      ({1620.f, 465.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86.f});
 
-//constructor
+//Constructor
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
     uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
@@ -897,12 +897,23 @@ void UIManager::update(float dt)
 
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
-        // If the game has started, but the traffic audio isn't playing yet, force it to play!
-            if (!audio_.vehicleAmbiencePlaying()) audio_.startVehicleAmbience();
+        // 1. Play or Resume traffic if actively playing
+        if (!audio_.vehicleAmbiencePlaying()) {
+            audio_.startVehicleAmbience();
+        }
+
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
         player_.update(dt);
+    }
+
+    else if (state_ == UIState::Pause || state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
+    {
+        // 2. Pause traffic when paused, or in menus like Game Over / Main Menu
+        if (audio_.vehicleAmbiencePlaying()) {
+            audio_.pauseVehicleAmbience();
+        }
     }
 
     if (gameplayStarted_ && state_ == UIState::EndlessPlay)
@@ -991,12 +1002,12 @@ void UIManager::update(float dt)
                                         if (row % 2 == 0) {
                                             Obstacles.push_back(new CCat(spawnX, rowY, dir));
                                             // 10% chance for the cat to meow when it spawns!
-                                            if (rand() % 100 < 10) audio_.playAnimalSample();
+                                            if (rand() % 100 < 10) audio_.playAnimalSample(false); //false = cat
                                         }
                                         else {
                                             Obstacles.push_back(new CDeer(spawnX, rowY, dir));
                                             // 5% chance for the deer to grunt when it spawns!
-                                            if (rand() % 100 < 5) audio_.playAnimalSample(true);
+                                            if (rand() % 100 < 5) audio_.playAnimalSample(true); //true = deer
                                         }
                                     }
                                 }
@@ -1013,7 +1024,7 @@ void UIManager::update(float dt)
                 }
             } // <-- SPAWNER BLOCK ENDS HERE
 
-            // --- 4. TRAFFIC LIGHT SYSTEM (MOVED OUTSIDE SPAWNER TO RUN EVERY FRAME) ---
+            // --- 4. TRAFFIC LIGHT SYSTEM ---
             trafficLightTimer_ += dt;
             if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
                 currentLight_ = TrafficLight::Yellow;

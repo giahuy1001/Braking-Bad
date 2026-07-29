@@ -183,7 +183,9 @@
     <Media Include="assets\audio\crash.mp3" />
     <Media Include="assets\audio\deer.mp3" />
     <Media Include="assets\audio\traffic.wav" />
-    <Media Include="\\Mac\Home\Downloads\nawhij - タンポポ.mp3" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\audio\bgm.m4a" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

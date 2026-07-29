@@ -30,8 +30,11 @@ void AudioManager::loadAssets()
     }
     if (catBuf_.loadFromFile("assets/audio/cat.wav")) catSound_.emplace(catBuf_);
     if (deerBuf_.loadFromFile("assets/audio/deer.wav")) deerSound_.emplace(deerBuf_);
+    if (fallBuf_.loadFromFile("assets/audio/fall.wav")) {
+        fallSound_.emplace(fallBuf_);
+    }
 
-    // UI SFX buffers (The ones we just added!)
+    // UI SFX buffers 
     if (clickBuf_.loadFromFile("assets/audio/UI.wav")) {
         clickSound_.emplace(clickBuf_);
     }
@@ -76,6 +79,10 @@ void AudioManager::playAnimalSample(bool deer) { if (deer ? deerSound_ : catSoun
 void AudioManager::playUiCrash() { if (crashSound_) crashSound_->play(); }
 void AudioManager::playUiClick() { if (clickSound_) clickSound_->play(); }
 void AudioManager::playUiHover() { if (hoverSound_) hoverSound_->play(); }
+void AudioManager::playFallSound()
+{
+    if (fallSound_) fallSound_->play();
+}
 
 void AudioManager::playPreview(AudioCategory category)
 {
@@ -113,7 +120,10 @@ void AudioManager::applyVolumes()
     if (catSound_) catSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::AnimalSFX));
     if (deerSound_) deerSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::AnimalSFX));
     // crash hien duoc game dung cho thua/va cham, nen thuoc UISFX.
-    if (crashSound_) crashSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::UISFX));
+    if (crashSound_) crashSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::EnvironmentSFX));
+    if (fallSound_) {
+        fallSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::EnvironmentSFX));
+    }
     if (environmentPreviewSound_)
         environmentPreviewSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::EnvironmentSFX));
     if (clickSound_) clickSound_->setVolume(userSfxVolume_ * baseVolume(AudioCategory::UISFX));
@@ -134,7 +144,6 @@ void AudioManager::setBgmTrack(std::size_t index)
 {
     // Safety check: ensure the index exists in our playlist
     if (index >= bgmPlaylist_.size()) return;
-
     currentBgmIndex_ = index;
 
     // Stop the current song and load the new one

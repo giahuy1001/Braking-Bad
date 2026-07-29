@@ -53,6 +53,7 @@ public:
     void playPreview(AudioCategory category);
     void playUiClick();
     void playUiHover();
+    void playFallSound();
 
     static const char* displayName(AudioCategory category);
 
@@ -64,7 +65,7 @@ private:
 
     // Noi de hardcode ket qua mix da chot sau khi debug.
     static constexpr std::array<float, static_cast<std::size_t>(AudioCategory::Count)>
-        kDefaultBaseVolumes = { 1.00f, 0.5f, 0.15f, 1.00f, 0.20f }; //Music, Vehicle, Animal, Environment, UI
+        kDefaultBaseVolumes = { 1.00f, 0.5f, 0.15f, 0.50f, 0.20f }; //Music, Vehicle, Animal, Environment, UI
 
     void applyVolumes();
     void logBaseVolumes() const;
@@ -80,6 +81,8 @@ private:
     std::optional<sf::Sound> crashSound_, catSound_, deerSound_;
     sf::SoundBuffer clickBuf_, hoverBuf_;
     std::optional<sf::Sound> clickSound_, hoverSound_;
+    sf::SoundBuffer fallBuf_;
+    std::optional<sf::Sound> fallSound_;
 
     // Environment hien chua co asset rieng. Ban sao nay cho phep dung crash.mp3
     // lam preview tam thoi ma khong lam thay doi volume cua UISFX/crash that.
@@ -88,7 +91,7 @@ private:
     // --- BGM Tracker ---
     std::size_t currentBgmIndex_ = 0;
 
-    // Define your playlist here! Make sure these files exist in your folder.
+    // Define playlist here! Make sure these files exist in folder.
     const std::vector<std::string> bgmPlaylist_ = {
         "assets/audio/nawhij.wav",                  // Track 0
         "assets/audio/Relaxed Scene.wav",           // Track 1

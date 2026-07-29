@@ -736,6 +736,10 @@ void UIManager::handlePlay(const sf::Event& e)
 
         // Xử lý GameOver nếu đạp trúng nắp cống
         if (steppedOnManhole) {
+            // --- AUDIO TRIGGERS ---
+            audio_.playFallSound();          // Play the falling sound
+            audio_.pauseVehicleAmbience();   // Silence the road traffic
+
             player_.kill();
             if (state_ == UIState::EndlessPlay) {
                 finishEndlessRun();

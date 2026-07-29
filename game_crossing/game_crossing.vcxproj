@@ -146,7 +146,7 @@
     <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
     <ClCompile Include="src\AudioManager.cpp" />
-     <ClCompile Include="src\MapBackground.cpp" />
+    <ClCompile Include="src\MapBackground.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
     <ClCompile Include="src\persistence\SaveStore.cpp" />
     <ClCompile Include="src\persistence\RankingStore.cpp" />
@@ -184,7 +184,10 @@
     <Media Include="assets\audio\bgm.wav" />
     <Media Include="assets\audio\cat.wav" />
     <Media Include="assets\audio\crash.mp3" />
+    <Media Include="assets\audio\crash.wav" />
     <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\deer.wav" />
+    <Media Include="assets\audio\fall.wav" />
     <Media Include="assets\audio\nawhij.wav" />
     <Media Include="assets\audio\Relaxed Scene.wav" />
     <Media Include="assets\audio\Seasons (guitar cover).wav" />

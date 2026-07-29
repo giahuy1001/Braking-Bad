@@ -17,20 +17,30 @@ AudioManager::AudioManager() = default;
 
 void AudioManager::loadAssets()
 {
-    if (bgMusic_.openFromFile("assets/audio/bgm.mp3")) {
+    // Background & Traffic streams
+    if (bgMusic_.openFromFile("assets/audio/bgm.wav")) {
         bgMusic_.setLooping(true);
         bgMusic_.play();
     }
     if (trafficNoise_.openFromFile("assets/audio/traffic.wav"))
         trafficNoise_.setLooping(true);
+
+    // Gameplay SFX buffers
     if (crashBuf_.loadFromFile("assets/audio/crash.mp3")) {
         crashSound_.emplace(crashBuf_);
         environmentPreviewSound_.emplace(crashBuf_);
     }
     if (catBuf_.loadFromFile("assets/audio/cat.wav")) catSound_.emplace(catBuf_);
     if (deerBuf_.loadFromFile("assets/audio/deer.mp3")) deerSound_.emplace(deerBuf_);
-    if (clickBuf_.loadFromFile("assets/audio/click.mp3")) clickSound_.emplace(clickBuf_);
-    if (hoverBuf_.loadFromFile("assets/audio/hover.mp3")) hoverSound_.emplace(hoverBuf_);
+
+    // UI SFX buffers (The ones we just added!)
+    if (clickBuf_.loadFromFile("assets/audio/UI.wav")) {
+        clickSound_.emplace(clickBuf_);
+    }
+    if (hoverBuf_.loadFromFile("assets/audio/UI.wav")) {
+        hoverSound_.emplace(hoverBuf_);
+    }
+
     applyVolumes();
 }
 

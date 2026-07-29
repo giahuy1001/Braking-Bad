@@ -141,4 +141,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Media Include="assets\audio\bgm.mp3" />
+    <Media Include="assets\audio\cat.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\crash.mp3" />
+    <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\traffic.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\UI.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\audio\bgm.m4a" />
+  </ItemGroup>
 </Project>

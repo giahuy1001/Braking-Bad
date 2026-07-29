@@ -183,6 +183,7 @@
     <Media Include="assets\audio\crash.mp3" />
     <Media Include="assets\audio\deer.mp3" />
     <Media Include="assets\audio\traffic.wav" />
+    <Media Include="assets\audio\UI.wav" />
   </ItemGroup>
   <ItemGroup>
     <None Include="assets\audio\bgm.m4a" />

@@ -130,6 +130,7 @@ private:
     // Members
     sf::RenderWindow& win_;
     sf::View uiView_;
+    sf::View gameView_;
     sf::Font   font_;
     sf::Text   debugText_;
     bool       fontLoaded_ = false;

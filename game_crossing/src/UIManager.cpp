@@ -91,8 +91,9 @@ const sf::FloatRect UIManager::kSettingOkBounds     ({1504.f, 816.f}, {148.f, 10
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
     uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
+    gameView_({ WINDOW_W * 0.5f, WINDOW_H * 0.5f }, { WINDOW_W, WINDOW_H }), // <--- ADD THIS LINE!
     debugText_(font_, "", 18),
-    trafficLightSprite_(texTrafficGreen_) 
+    trafficLightSprite_(texTrafficGreen_)
 {
     // Use a project font first, then Windows fonts. This keeps debug text
     // visible even when the game is launched outside the IDE's working dir.
@@ -242,7 +243,7 @@ void UIManager::handleEvents()
             if (key->code == sf::Keyboard::Key::F9) {
                 audio_.playUiClick();
                 audio_.cycleBgm(1); // Skips to the next track instantly
-                return;
+                continue;
             }
 
             // Khi mixer dang mo, cac phim dieu khien no khong duoc roi xuong
@@ -258,7 +259,7 @@ void UIManager::handleEvents()
             }
 
             // --- FULLSCREEN TOGGLE ---
-            if (key->code == sf::Keyboard::Key::F11)
+            if (key->code == sf::Keyboard::Key::F11 || key->code == sf::Keyboard::Key::F4)
             {
                 audio_.playUiClick();
                 pendingFullscreenToggle_ = true;
@@ -393,8 +394,7 @@ void UIManager::handleModeSel(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
+            sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
             for (int i = 0; i < (int)btns_.size(); ++i)
             {
                 if (btns_[i].consumeClick(mp))
@@ -410,8 +410,7 @@ void UIManager::handleModeSel(const sf::Event& e)
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
+        sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
@@ -468,7 +467,7 @@ void UIManager::handleLvlSel(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+            sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
             for (int i = 0; i < (int)btns_.size(); ++i)
             {
                 if (btns_[i].consumeClick(mp))
@@ -484,7 +483,7 @@ void UIManager::handleLvlSel(const sf::Event& e)
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+        sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
@@ -508,14 +507,14 @@ void UIManager::handleSetting(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            const sf::Vector2f p(mm->position.x, mm->position.y);
-            if (scaledBaseRect(kSettingOkBounds).contains(p)) { audio_.playUiClick(); sets_.save(cfg_); setState(UIState::MainMenu); return; }
-            if (scaledBaseRect(kSfxDecBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kSfxIncBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kMusicDecBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::max(0, cfg_.musicVolume - 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kMusicIncBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::min(100, cfg_.musicVolume + 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kSfxTrackBounds).contains(p)) { draggingSfx_ = true; setSfxVolumeFromMouse(mm->position); return; }
-            if (scaledBaseRect(kMusicTrackBounds).contains(p)) { draggingMusic_ = true; setMusicVolumeFromMouse(mm->position); return; }
+            const sf::Vector2f p = win_.mapPixelToCoords(mm->position, gameView_);
+            if ((kSettingOkBounds).contains(p)) { audio_.playUiClick(); sets_.save(cfg_); setState(UIState::MainMenu); return; }
+            if ((kSfxDecBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
+            if ((kSfxIncBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
+            if ((kMusicDecBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::max(0, cfg_.musicVolume - 5); applyAudioVolumes(); return; }
+            if ((kMusicIncBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::min(100, cfg_.musicVolume + 5); applyAudioVolumes(); return; }
+            if ((kSfxTrackBounds).contains(p)) { draggingSfx_ = true; setSfxVolumeFromMouse(mm->position); return; }
+            if ((kMusicTrackBounds).contains(p)) { draggingMusic_ = true; setMusicVolumeFromMouse(mm->position); return; }
         }
     }
     //MouseMoved logic
@@ -552,11 +551,11 @@ void UIManager::handleGraphic(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            const sf::Vector2f p(mm->position.x, mm->position.y);
-            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kThemePrevBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
-            if (scaledBaseRect(kThemeNextBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            const sf::Vector2f p = win_.mapPixelToCoords(mm->position, gameView_);
+            if (kCharacterPrevBounds.contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (kCharacterNextBounds.contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (kThemePrevBounds.contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            if (kThemeNextBounds.contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
         }
     }
 }
@@ -588,7 +587,7 @@ void UIManager::handleLoad(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+            sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
             if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 0; rebuildButtons(); return; }
             if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 1; rebuildButtons(); return; }
             for (size_t i = 2; i < btns_.size(); ++i)
@@ -600,7 +599,7 @@ void UIManager::handleLoad(const sf::Event& e)
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+        sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
@@ -632,7 +631,7 @@ void UIManager::handleRanking(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+            sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
             if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); return; }
             if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); return; }
         }
@@ -640,7 +639,7 @@ void UIManager::handleRanking(const sf::Event& e)
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+        sf::Vector2f mp = win_.mapPixelToCoords(mm->position, uiView_);
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
@@ -1327,7 +1326,7 @@ sf::Vector2f UIManager::toBaseCoords(sf::Vector2i pixel) const
 
 sf::FloatRect UIManager::scaledMenuBounds(std::size_t index) const
 {
-    return scaledBaseRect(kMainMenuButtonBounds.at(index));
+    return (kMainMenuButtonBounds.at(index));
 }
 
 sf::FloatRect UIManager::scaledBaseRect(const sf::FloatRect& base) const
@@ -1341,16 +1340,18 @@ sf::FloatRect UIManager::scaledBaseRect(const sf::FloatRect& base) const
 
 void UIManager::setSfxVolumeFromMouse(sf::Vector2i pixel)
 {
-    const sf::FloatRect track = scaledBaseRect(kSfxTrackBounds);
-    const float ratio = (pixel.x - track.position.x) / track.size.x;
+    const sf::Vector2f p = win_.mapPixelToCoords(pixel, gameView_);
+    const sf::FloatRect track = kSfxTrackBounds; // Removed scaledBaseRect!
+    const float ratio = (p.x - track.position.x) / track.size.x;
     cfg_.volume = std::clamp(static_cast<int>(std::lround(ratio * 100.f)), 0, 100);
     applyAudioVolumes();
 }
 
 void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
 {
-    const sf::FloatRect track = scaledBaseRect(kMusicTrackBounds);
-    const float ratio = (pixel.x - track.position.x) / track.size.x;
+    const sf::Vector2f p = win_.mapPixelToCoords(pixel, gameView_);
+    const sf::FloatRect track = kMusicTrackBounds; // Removed scaledBaseRect!
+    const float ratio = (p.x - track.position.x) / track.size.x;
     cfg_.musicVolume = std::clamp(static_cast<int>(std::lround(ratio * 100.f)), 0, 100);
     applyAudioVolumes();
 }
@@ -1390,9 +1391,11 @@ bool UIManager::handleDebugAudioMixerKey(const sf::Event::KeyPressed& key)
 
 int UIManager::menuButtonAt(sf::Vector2i pixel) const
 {
-    const sf::Vector2f point(static_cast<float>(pixel.x), static_cast<float>(pixel.y));
+    // Let SFML natively map the physical mouse pixels to your 1080p camera!
+    const sf::Vector2f point = win_.mapPixelToCoords(pixel, gameView_);
+
     for (std::size_t i = 0; i < kMainMenuButtonBounds.size(); ++i)
-        if (scaledMenuBounds(i).contains(point)) return static_cast<int>(i);
+        if (kMainMenuButtonBounds.at(i).contains(point)) return static_cast<int>(i);
     return -1;
 }
 
@@ -1647,12 +1650,8 @@ void UIManager::drawBackground()
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
 
-        const sf::Vector2u windowSize = win_.getSize();
-        const sf::Vector2u textureSize = texture->getSize();
-        if (textureSize.x == 0 || textureSize.y == 0) return;
         sf::Sprite s(*texture);
-        s.setScale({ windowSize.x / static_cast<float>(textureSize.x),
-                     windowSize.y / static_cast<float>(textureSize.y) });
+        // NO MORE setScale MATH! SFML handles the stretching natively now.
         win_.draw(s);
     }
     else
@@ -1689,9 +1688,10 @@ void UIManager::drawMainMenuDebugOverlay()
 void UIManager::drawMainMenuHoverGlow()
 {
     const int hovered = menuButtonAt(sf::Mouse::getPosition(win_));
-    if (hovered < 0) return; // Normal state is fully transparent.
+    if (hovered < 0) return;
 
-    const sf::FloatRect bounds = scaledMenuBounds(static_cast<std::size_t>(hovered));
+    // Use the raw bounds without manual scaling
+    const sf::FloatRect bounds = kMainMenuButtonBounds.at(static_cast<std::size_t>(hovered));
     if (hovered < 4)
     {
         sf::RectangleShape glow(bounds.size);
@@ -1880,8 +1880,7 @@ void UIManager::render()
     }
     else
     {
-        // Backgrounds use physical window pixels so they fill any resolution.
-        win_.setView(win_.getDefaultView());
+        win_.setView(gameView_);
         drawBackground();
         win_.setView(uiView_);
     }
@@ -1995,7 +1994,7 @@ void UIManager::renderLvlSel()
 
 void UIManager::renderSetting()
 {
-    win_.setView(win_.getDefaultView());
+    win_.setView(gameView_);
     auto slider = [&](const sf::FloatRect& base, int value, const std::string& name) {
         const sf::FloatRect b = scaledBaseRect(base);
         sf::RectangleShape track(b.size); track.setPosition(b.position); track.setFillColor(sf::Color(20,20,20,190)); win_.draw(track);
@@ -2010,7 +2009,7 @@ void UIManager::renderSetting()
 
 void UIManager::renderGraphic()
 {
-    win_.setView(win_.getDefaultView());
+    win_.setView(gameView_);
     const sf::FloatRect left = scaledBaseRect(kCharacterPanelBounds), right = scaledBaseRect(kThemePanelBounds);
     sf::Text a(font_, "CHARACTER: " + CharacterRenderer::name(ctx_.selectedCharacterID), 28); a.setFillColor(sf::Color::White); a.setPosition({left.position.x+35.f,left.position.y+35.f}); win_.draw(a);
     sf::Text b(font_, "THEME: " + kThemeNames[currentThemeIndex_], 28); b.setFillColor(sf::Color::White); b.setPosition({right.position.x+35.f,right.position.y+35.f}); win_.draw(b);

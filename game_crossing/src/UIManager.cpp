@@ -995,8 +995,8 @@ void UIManager::update(float dt)
                                         }
                                         else {
                                             Obstacles.push_back(new CDeer(spawnX, rowY, dir));
-                                            // 10% chance for the deer to grunt when it spawns!
-                                            if (rand() % 100 < 10) audio_.playAnimalSample(true);
+                                            // 5% chance for the deer to grunt when it spawns!
+                                            if (rand() % 100 < 5) audio_.playAnimalSample(true);
                                         }
                                     }
                                 }

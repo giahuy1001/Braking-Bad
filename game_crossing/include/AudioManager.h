@@ -59,7 +59,7 @@ private:
 
     // Noi de hardcode ket qua mix da chot sau khi debug.
     static constexpr std::array<float, static_cast<std::size_t>(AudioCategory::Count)>
-        kDefaultBaseVolumes = { 1.00f, 0.5f, 0.15f, 1.00f, 0.30f };
+        kDefaultBaseVolumes = { 1.00f, 0.5f, 0.15f, 1.00f, 0.20f }; //Music, Vehicle, Animal, Environment, UI
 
     void applyVolumes();
     void logBaseVolumes() const;

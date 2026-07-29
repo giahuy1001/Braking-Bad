@@ -86,6 +86,9 @@ const sf::FloatRect UIManager::kMusicTrackBounds    ({1383.f, 690.f}, {400.f, 20
 const sf::FloatRect UIManager::kMusicDecBounds      ({1313.f, 675.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kMusicIncBounds      ({1803.f, 675.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kSettingOkBounds     ({1504.f, 816.f}, {148.f, 102.f});
+const sf::FloatRect UIManager::kGraphicOkThemeBounds ({1520.f, 801.f}, {155.f, 120.f});
+const sf::FloatRect UIManager::kGraphicCharacterOkBounds ({288.f, 814.f}, {155.f, 120.f});
+
 
 //Constructor
 UIManager::UIManager(sf::RenderWindow& window)
@@ -205,11 +208,62 @@ bool UIManager::setTheme(const std::string& seasonName)
         std::cerr << "[UIManager] optional Pause.png is missing for theme '"
                   << seasonName << "'; using the normal seasonal background.\n";
     currentTheme_ = seasonName;
+    currentThemeIndex_ = static_cast<int>(std::distance(kThemeNames.begin(),
+        std::find(kThemeNames.begin(), kThemeNames.end(), currentTheme_)));
     if (!mapBackground_.loadTheme(currentTheme_))
         std::cerr << "[UIManager] no gameplay maps found for theme '" << currentTheme_ << "'\n";
     endlessMap_.setAvailableMapLevels(mapBackground_.availableLevelNumbers());
     assetsLoaded_ = true;
     return true;
+}
+
+bool UIManager::loadGraphicPreviewThemeIcon()
+{
+    const std::string& season = kThemeNames.at(previewThemeIndex_);
+    std::string legacyFolder = season;
+    legacyFolder[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(legacyFolder[0])));
+
+    sf::Texture loaded;
+    for (const std::string& folder : { season, legacyFolder }) {
+        if (loaded.loadFromFile("assets/theme/" + folder + "/IconTheme.png")) {
+            iconThemeTex_ = std::move(loaded);
+            return true;
+        }
+    }
+    std::cerr << "[UIManager] missing IconTheme.png for preview theme '" << season << "'\n";
+    return false;
+}
+
+void UIManager::beginGraphicPreview()
+{
+    previewThemeIndex_ = currentThemeIndex_;
+    previewCharacterId_ = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId);
+    loadGraphicPreviewThemeIcon();
+}
+
+bool UIManager::commitGraphicPreview()
+{
+    const bool themeApplied = commitPreviewTheme();
+    commitPreviewCharacter();
+    return themeApplied;
+}
+
+bool UIManager::commitPreviewTheme()
+{
+    // setTheme is transactional: if any required seasonal UI asset fails,
+    // preserve both the active theme and the persisted cosmetic selection.
+    if (!setTheme(kThemeNames.at(previewThemeIndex_)))
+        return false;
+
+    sets_.save(cfg_);
+    return true;
+}
+
+void UIManager::commitPreviewCharacter()
+{
+    cfg_.cosmetic.characterId = previewCharacterId_;
+    ctx_.selectedCharacterID = previewCharacterId_;
+    sets_.save(cfg_);
 }
 
 // ---------------------------------------------------------------------
@@ -263,6 +317,8 @@ void UIManager::handleEvents()
 
             if (key->code == sf::Keyboard::Key::F7)
             {
+                if (state_ == UIState::Graphic)
+                    commitGraphicPreview(); // Debug shortcut also confirms the current preview.
                 debugUi_ = !debugUi_;
                 std::cout << "[UI Debug] " << (debugUi_ ? "enabled" : "disabled") << '\n';
                 continue;
@@ -533,15 +589,13 @@ void UIManager::handleGraphic(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Left)
         {
             audio_.playUiClick();
-            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1);
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+            previewCharacterId_ = CharacterRenderer::normalizeID(previewCharacterId_ - 1);
             return;
         }
         if (k->code == sf::Keyboard::Key::Right)
         {
             audio_.playUiClick();
-            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+            previewCharacterId_ = CharacterRenderer::normalizeID(previewCharacterId_ + 1);
             return;
         }
     }
@@ -550,10 +604,12 @@ void UIManager::handleGraphic(const sf::Event& e)
         if (mm->button == sf::Mouse::Button::Left)
         {
             const sf::Vector2f p(mm->position.x, mm->position.y);
-            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kThemePrevBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
-            if (scaledBaseRect(kThemeNextBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { audio_.playUiClick(); previewCharacterId_ = CharacterRenderer::normalizeID(previewCharacterId_ - 1); return; }
+            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { audio_.playUiClick(); previewCharacterId_ = CharacterRenderer::normalizeID(previewCharacterId_ + 1); return; }
+            if (scaledBaseRect(kThemePrevBounds).contains(p)) { audio_.playUiClick(); previewThemeIndex_ = (previewThemeIndex_ + 3) % 4; loadGraphicPreviewThemeIcon(); return; }
+            if (scaledBaseRect(kThemeNextBounds).contains(p)) { audio_.playUiClick(); previewThemeIndex_ = (previewThemeIndex_ + 1) % 4; loadGraphicPreviewThemeIcon(); return; }
+            if (scaledBaseRect(kGraphicCharacterOkBounds).contains(p)) { audio_.playUiClick(); commitPreviewCharacter(); return; }
+            if (scaledBaseRect(kGraphicOkThemeBounds).contains(p)) { audio_.playUiClick(); commitPreviewTheme(); return; }
         }
     }
 }
@@ -1268,6 +1324,8 @@ void UIManager::setState(UIState s)
         capturePausedFrame();
 
     state_ = s;
+    if (s == UIState::Graphic && previousState != UIState::Graphic)
+        beginGraphicPreview();
     if (enteringClassic || enteringEndless)
         resetGameplay();
     if (s == UIState::Pause || previousState == UIState::Pause)
@@ -1575,20 +1633,7 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::Graphic:
-    {
-        auto y = vstack(240, 3);
-        add(y(0), { BTN_W, BTN_H }, "Character  ( < / > )", Button::Style::Subtle, [this] {
-            cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-            sets_.save(cfg_);
-            });
-        add(y(1), { BTN_W, BTN_H }, "Background  ( < / > )", Button::Style::Subtle, [this] {
-            cfg_.cosmetic.backgroundId = std::min(7, cfg_.cosmetic.backgroundId + 1);
-            sets_.save(cfg_);
-            });
-        add(y(2), { BTN_W, BTN_H }, "Back", Button::Style::Subtle, [this] { handleBack(); });
         break;
-    }
 
     case UIState::LoadGame:
     {
@@ -1853,6 +1898,8 @@ void UIManager::drawActiveDebugHitboxes()
     if (state_ == UIState::Graphic) {
         box(kCharacterPanelBounds); box(kCharacterPrevBounds); box(kCharacterNextBounds);
         box(kThemePanelBounds); box(kThemePrevBounds); box(kThemeNextBounds);
+        box(kGraphicCharacterOkBounds);
+        box(kGraphicOkThemeBounds);
     } else if (state_ == UIState::Setting) {
         box(kSfxTrackBounds); box(kSfxDecBounds); box(kSfxIncBounds);
         box(kMusicTrackBounds); box(kMusicDecBounds); box(kMusicIncBounds); box(kSettingOkBounds);
@@ -2112,11 +2159,28 @@ void UIManager::renderSetting()
 void UIManager::renderGraphic()
 {
     win_.setView(win_.getDefaultView());
-    const sf::FloatRect left = scaledBaseRect(kCharacterPanelBounds), right = scaledBaseRect(kThemePanelBounds);
-    sf::Text a(font_, "CHARACTER: " + CharacterRenderer::name(ctx_.selectedCharacterID), 28); a.setFillColor(sf::Color::White); a.setPosition({left.position.x+35.f,left.position.y+35.f}); win_.draw(a);
-    sf::Text b(font_, "THEME: " + kThemeNames[currentThemeIndex_], 28); b.setFillColor(sf::Color::White); b.setPosition({right.position.x+35.f,right.position.y+35.f}); win_.draw(b);
-    // The four navigation hitboxes remain active in handleGraphic(), but the
-    // old '<' and '>' glyphs are intentionally no longer rendered.
+    const sf::FloatRect characterPanel = scaledBaseRect(kCharacterPanelBounds);
+    const sf::FloatRect themePanel = scaledBaseRect(kThemePanelBounds);
+
+    // Character sprites are not available yet, so preserve the existing
+    // geometry-only placeholder and center it in the panel.
+    CharacterRenderer::draw(win_, previewCharacterId_,
+                            { characterPanel.position.x + characterPanel.size.x * .5f,
+                              characterPanel.position.y + characterPanel.size.y * .5f },
+                            std::min(characterPanel.size.x, characterPanel.size.y) * .22f);
+
+    // IconTheme is loaded only when the preview season changes, never here.
+    if (iconThemeTex_.getSize().x != 0 && iconThemeTex_.getSize().y != 0) {
+        sf::Sprite icon(iconThemeTex_);
+        const sf::Vector2u iconSize = iconThemeTex_.getSize();
+        const float fit = std::min(themePanel.size.x / static_cast<float>(iconSize.x),
+                                   themePanel.size.y / static_cast<float>(iconSize.y));
+        icon.setOrigin({ iconSize.x * .5f, iconSize.y * .5f });
+        icon.setScale({ fit, fit });
+        icon.setPosition({ themePanel.position.x + themePanel.size.x * .5f,
+                           themePanel.position.y + themePanel.size.y * .5f });
+        win_.draw(icon);
+    }
     win_.setView(uiView_);
 }
 

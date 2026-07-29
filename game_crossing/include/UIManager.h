@@ -125,6 +125,11 @@ private:
     void setMusicVolumeFromMouse(sf::Vector2i pixel);
     void applyAudioVolumes();
     void savePausedRunAndExit();
+    bool loadGraphicPreviewThemeIcon();
+    void beginGraphicPreview();
+    bool commitGraphicPreview();
+    bool commitPreviewTheme();
+    void commitPreviewCharacter();
     void capturePausedFrame();
     sf::FloatRect pauseOverlayBounds() const;
     sf::FloatRect pauseResumeBounds() const;
@@ -137,7 +142,7 @@ private:
     sf::Font   font_;
     sf::Text   debugText_;
     bool       fontLoaded_ = false;
-    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, pauseTex_, backButtonTex_,
+    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
     sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
@@ -149,6 +154,8 @@ private:
     bool       debugAudioMixer_ = false;
     std::size_t selectedAudioCategory_ = 0;
     int        currentThemeIndex_ = 0;
+    int        previewThemeIndex_ = 0;
+    int        previewCharacterId_ = 1;
     bool       draggingSfx_ = false;
     bool       draggingMusic_ = false;
 
@@ -161,6 +168,8 @@ private:
     static const sf::FloatRect kThemePanelBounds, kThemePrevBounds, kThemeNextBounds;
     static const sf::FloatRect kSfxTrackBounds, kSfxDecBounds, kSfxIncBounds;
     static const sf::FloatRect kMusicTrackBounds, kMusicDecBounds, kMusicIncBounds, kSettingOkBounds;
+    static const sf::FloatRect kGraphicOkThemeBounds;
+    static const sf::FloatRect kGraphicCharacterOkBounds;
 
     UIState        state_                = UIState::Boot;
     UIState        stateBeforeModal_     = UIState::MainMenu;

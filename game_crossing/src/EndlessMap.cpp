@@ -163,17 +163,36 @@ void EndlessMap::spawnBlockAbove()
     block.startY = m_nextEndY - m_blockHeight;
     block.lanes.fill(LaneType::Safe);
     block.manholeCols.fill(-1);
+
+    // --- ĐOẠN CODE CHỌN MAP NGẪU NHIÊN MỚI ---
+    // Khai báo danh sách 15 map dưới dạng chuỗi ký tự (bao gồm cả các map x.1)
+    static const std::vector<std::string> availableMaps = {
+        "1", "2", "3", "4", "5",
+        "6", "6.1", "7", "7.1", "8",
+        "8.1", "9", "9.1", "10", "10.1"
+    };
+
+    // Khởi tạo bộ sinh số ngẫu nhiên
     std::random_device rd;
     std::mt19937 localRng(rd());
-    const int randomMap = m_availableMapLevels.empty()
-        ? std::uniform_int_distribution<int>(1, 10)(localRng)
-        : m_availableMapLevels[std::uniform_int_distribution<std::size_t>(
-            0, m_availableMapLevels.size() - 1)(localRng)];
-    block.mapImageKey = "map_level_" + std::to_string(randomMap);
 
-    if (!loadMapFromFile(randomMap, block.lanes, block.manholeCols)) {
+    // Chọn ngẫu nhiên 1 index từ 0 đến 14 (tương ứng với 15 map)
+    std::uniform_int_distribution<std::size_t> dist(0, availableMaps.size() - 1);
+    std::string chosenMap = availableMaps[dist(localRng)];
+
+    // Gán tên file ảnh để hệ thống đồ họa vẽ đúng (ví dụ: map_level_6.1)
+    block.mapImageKey = "map_level_" + chosenMap;
+
+    // Tải cấu hình làn đường (Xe/Động vật/An toàn) và nắp cống từ file txt tương ứng
+    std::string txtFilePath = "assets/map/map_level_" + chosenMap + ".txt";
+
+    // Gọi hàm loadMapFromFile phiên bản nhận tham số std::string
+    if (!loadMapFromFile(txtFilePath, block.lanes, block.manholeCols)) {
+        // Nếu không tìm thấy file txt, sinh cấu hình an toàn mặc định để không crash game
         block.lanes = generateLaneLayout(block.blockID * 2654435761u, block.blockID == 0);
     }
+    // -----------------------------------------
+
     m_nextEndY = block.startY;
     m_blocks.push_front(block);
 }

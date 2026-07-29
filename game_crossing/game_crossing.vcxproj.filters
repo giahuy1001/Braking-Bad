@@ -21,6 +21,9 @@
     <ClCompile Include="src\EndlessMap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\AudioManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\CharacterRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -83,6 +86,9 @@
     <ClInclude Include="include\Grid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\AudioManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\CharacterRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -140,5 +146,34 @@
     <ClInclude Include="include\MapBackground.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="assets\audio\bgm.mp3" />
+    <Media Include="assets\audio\cat.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\crash.mp3" />
+    <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\traffic.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\UI.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\bgm.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\nawhij.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\Relaxed Scene.wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+    <Media Include="assets\audio\Seasons (guitar cover).wav">
+      <Filter>Resource Files</Filter>
+    </Media>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\audio\bgm.m4a" />
   </ItemGroup>
 </Project>

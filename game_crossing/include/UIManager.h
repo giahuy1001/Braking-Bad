@@ -1,6 +1,7 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
+#include "AudioManager.h"
 #include "UIState.h"
 #include "Button.h"
 #include "EndlessMap.h"
@@ -18,6 +19,7 @@
 #include <string>
 #include <array>
 #include <functional>
+#include <optional>
 
 // ---------------------------------------------------------------------
 //  Central UI controller.  Owns the window, the assets, the persistence
@@ -79,6 +81,7 @@ private:
     void drawMainMenuDebugOverlay();
     void drawActiveDebugHitboxes();
     void drawMouseDebugInfo();
+    void drawDebugAudioMixer();
     void drawBackIcon();
     void drawModalOverlay();
     void drawCenteredText(const std::string& s, float y,
@@ -121,6 +124,7 @@ private:
     void setSfxVolumeFromMouse(sf::Vector2i pixel);
     void setMusicVolumeFromMouse(sf::Vector2i pixel);
     void applyAudioVolumes();
+    bool handleDebugAudioMixerKey(const sf::Event::KeyPressed& key);
 
     // Members
     sf::RenderWindow& win_;
@@ -133,6 +137,8 @@ private:
     bool       assetsLoaded_ = false;
     std::string currentTheme_ = "spring";
     bool       debugUi_ = false;
+    bool       debugAudioMixer_ = false;
+    std::size_t selectedAudioCategory_ = 0;
     int        currentThemeIndex_ = 0;
     bool       draggingSfx_ = false;
     bool       draggingMusic_ = false;
@@ -191,4 +197,8 @@ private:
     RankingStore  ranks_;
     ProgressStore prog_;
     SettingsStore sets_;
+
+    // AudioManager giu toan bo asset va cong thuc mix; UI chi gui volume
+    // nguoi dung va input cua Debug Audio Mixer.
+    AudioManager audio_;
 };

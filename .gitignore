@@ -10,3 +10,4 @@ Release/
 *.tlog
 *.log
 *.exe
+.DS_Store

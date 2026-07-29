@@ -6,6 +6,7 @@
 #include "CPlayer.h"
 #include "Grid.h"
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -86,11 +87,12 @@ const sf::FloatRect UIManager::kMusicDecBounds      ({1130.f, 465.f}, {50.f, 50.
 const sf::FloatRect UIManager::kMusicIncBounds      ({1620.f, 465.f}, {50.f, 50.f});
 const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86.f});
 
+//Constructor
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
     uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
     debugText_(font_, "", 18),
-    trafficLightSprite_(texTrafficGreen_) // <-- THÊM DÒNG NÀY
+    trafficLightSprite_(texTrafficGreen_) 
 {
     // Use a project font first, then Windows fonts. This keeps debug text
     // visible even when the game is launched outside the IDE's working dir.
@@ -148,6 +150,11 @@ UIManager::UIManager(sf::RenderWindow& window)
     prog_.load();
 
     setState(UIState::Boot);
+
+    // AudioManager tu load va phan loai asset. applyAudioVolumes() da gui
+    // volume trong Settings vao manager truoc do, nen manager se ap dung no
+    // ngay sau khi cac asset duoc nap.
+    audio_.loadAssets();
 }
 
 UIManager::~UIManager() = default;
@@ -223,6 +230,26 @@ void UIManager::handleEvents()
 
         if (const auto* key = event->getIf<sf::Event::KeyPressed>())
         {
+            if (key->code == sf::Keyboard::Key::F8)
+            {
+                debugAudioMixer_ = !debugAudioMixer_;
+                std::cout << "[Audio Mixer] Debug mixer "
+                          << (debugAudioMixer_ ? "enabled" : "disabled") << '\n';
+                continue;
+            }
+
+            // Switch bgms using "N" key
+            if (key->code == sf::Keyboard::Key::N) {
+                audio_.playUiClick();
+                audio_.cycleBgm(1); // Skips to the next track instantly
+                return;
+            }
+
+            // Khi mixer dang mo, cac phim dieu khien no khong duoc roi xuong
+            // gameplay (vi du Up/Down se khong lam Player di chuyen).
+            if (debugAudioMixer_ && handleDebugAudioMixerKey(*key))
+                continue;
+
             if (key->code == sf::Keyboard::Key::F3 || key->code == sf::Keyboard::Key::D)
             {
                 debugUi_ = !debugUi_;
@@ -299,8 +326,10 @@ void UIManager::handleBack()
 // ---------------------------------------------------------------------
 void UIManager::handleBoot(const sf::Event& e)
 {
-    if (e.is<sf::Event::KeyPressed>())
+    if (e.is<sf::Event::KeyPressed>()) {
+        audio_.playUiClick();
         setState(UIState::MainMenu);
+    }
 }
 
 void UIManager::handleMainMenu(const sf::Event& e)
@@ -317,14 +346,23 @@ void UIManager::handleMainMenu(const sf::Event& e)
         if (mm->button == sf::Mouse::Button::Left)
         {
             const int button = menuButtonAt(mm->position);
-            if (button >= 0) activateMainMenuButton(static_cast<std::size_t>(button));
+            if (button >= 0)
+            {
+                audio_.playUiClick(); // MOUSE CLICK
+                activateMainMenuButton(static_cast<std::size_t>(button));
+            }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
         const int button = menuButtonAt(mm->position);
-        if (button >= 0) focusIdx_ = button;
+
+        // MOUSE HOVER: Only play if we entered a NEW valid button!
+        if (button >= 0 && button != focusIdx_) {
+            audio_.playUiHover();
+            focusIdx_ = button;
+        }
     }
 }
 
@@ -347,6 +385,7 @@ void UIManager::handleModeSel(const sf::Event& e)
             {
                 if (btns_[i].consumeClick(mp))
                 {
+                    audio_.playUiClick(); // MOUSE CLICK
                     focusIdx_ = i;
                     activateFocused();
                     return;
@@ -362,7 +401,14 @@ void UIManager::handleModeSel(const sf::Event& e)
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            if (btns_[i].contains(mp))
+            {
+                // MOUSE HOVER: Only play if we just crossed into this button
+                if (focusIdx_ != i) {
+                    audio_.playUiHover();
+                }
+                focusIdx_ = i;
+            }
         }
     }
 }
@@ -371,14 +417,23 @@ void UIManager::handleName(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape)        { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Backspace)    { if (!nameBuffer_.empty()) nameBuffer_.pop_back(); return; }
-        if (k->code == sf::Keyboard::Key::Enter)        { if (isValidName(nameBuffer_)) { ctx_.pendingName = nameBuffer_; if (ctx_.mode == StateContext::Mode::Classic) setState(UIState::LevelSelect); else setState(UIState::EndlessPlay); } return; }
+        if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); handleBack(); return; }
+        if (k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); if (!nameBuffer_.empty()) nameBuffer_.pop_back(); return; }
+        if (k->code == sf::Keyboard::Key::Enter) {
+            if (isValidName(nameBuffer_)) {
+                audio_.playUiClick();
+                ctx_.pendingName = nameBuffer_;
+                if (ctx_.mode == StateContext::Mode::Classic) setState(UIState::LevelSelect);
+                else setState(UIState::EndlessPlay);
+            }
+            return;
+        }
     }
     if (const auto* t = e.getIf<sf::Event::TextEntered>())
     {
         if (isValidNameChar(static_cast<std::uint32_t>(t->unicode)) && (int)nameBuffer_.size() < NAME_MAX)
         {
+            audio_.playUiClick(); // Optional: Typewriter click effect
             nameBuffer_ += static_cast<char>(t->unicode);
         }
     }
@@ -388,23 +443,23 @@ void UIManager::handleLvlSel(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter) { activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Left)  { moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Right) { moveFocus(+1); return; }
-        if (k->code == sf::Keyboard::Key::Up)    { moveFocus(-5); return; }
-        if (k->code == sf::Keyboard::Key::Down)  { moveFocus(+5); return; }
+        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); handleBack(); return; }
+        if (k->code == sf::Keyboard::Key::Enter) { audio_.playUiClick(); activateFocused(); return; }
+        if (k->code == sf::Keyboard::Key::Left) { audio_.playUiHover(); moveFocus(-1); return; }
+        if (k->code == sf::Keyboard::Key::Right) { audio_.playUiHover(); moveFocus(+1); return; }
+        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); moveFocus(-5); return; }
+        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); moveFocus(+5); return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
+            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
             for (int i = 0; i < (int)btns_.size(); ++i)
             {
                 if (btns_[i].consumeClick(mp))
                 {
+                    audio_.playUiClick();
                     focusIdx_ = i;
                     activateFocused();
                     return;
@@ -415,12 +470,14 @@ void UIManager::handleLvlSel(const sf::Event& e)
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
+        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            if (btns_[i].contains(mp)) {
+                if (focusIdx_ != i) audio_.playUiHover();
+                focusIdx_ = i;
+            }
         }
     }
 }
@@ -430,23 +487,24 @@ void UIManager::handleSetting(const sf::Event& e)
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Left)  { cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
-        if (k->code == sf::Keyboard::Key::Right) { cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
+        if (k->code == sf::Keyboard::Key::Left) { cfg_.volume = std::max(0, cfg_.volume - 5); audio_.playUiClick(); applyAudioVolumes(); return; }
+        if (k->code == sf::Keyboard::Key::Right) { cfg_.volume = std::min(100, cfg_.volume + 5); audio_.playUiClick(); applyAudioVolumes(); return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
             const sf::Vector2f p(mm->position.x, mm->position.y);
-            if (scaledBaseRect(kSettingOkBounds).contains(p)) { sets_.save(cfg_); setState(UIState::MainMenu); return; }
-            if (scaledBaseRect(kSfxDecBounds).contains(p)) { cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kSfxIncBounds).contains(p)) { cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kMusicDecBounds).contains(p)) { cfg_.musicVolume = std::max(0, cfg_.musicVolume - 5); applyAudioVolumes(); return; }
-            if (scaledBaseRect(kMusicIncBounds).contains(p)) { cfg_.musicVolume = std::min(100, cfg_.musicVolume + 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kSettingOkBounds).contains(p)) { audio_.playUiClick(); sets_.save(cfg_); setState(UIState::MainMenu); return; }
+            if (scaledBaseRect(kSfxDecBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::max(0, cfg_.volume - 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kSfxIncBounds).contains(p)) { audio_.playUiClick(); cfg_.volume = std::min(100, cfg_.volume + 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kMusicDecBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::max(0, cfg_.musicVolume - 5); applyAudioVolumes(); return; }
+            if (scaledBaseRect(kMusicIncBounds).contains(p)) { audio_.playUiClick(); cfg_.musicVolume = std::min(100, cfg_.musicVolume + 5); applyAudioVolumes(); return; }
             if (scaledBaseRect(kSfxTrackBounds).contains(p)) { draggingSfx_ = true; setSfxVolumeFromMouse(mm->position); return; }
             if (scaledBaseRect(kMusicTrackBounds).contains(p)) { draggingMusic_ = true; setMusicVolumeFromMouse(mm->position); return; }
         }
     }
+    //MouseMoved logic
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
@@ -460,15 +518,17 @@ void UIManager::handleGraphic(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
+        if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); handleBack(); return; }
         if (k->code == sf::Keyboard::Key::Left)
         {
+            audio_.playUiClick();
             cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1);
             ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             return;
         }
         if (k->code == sf::Keyboard::Key::Right)
         {
+            audio_.playUiClick();
             cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1);
             ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
             return;
@@ -479,10 +539,10 @@ void UIManager::handleGraphic(const sf::Event& e)
         if (mm->button == sf::Mouse::Button::Left)
         {
             const sf::Vector2f p(mm->position.x, mm->position.y);
-            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
-            if (scaledBaseRect(kThemePrevBounds).contains(p)) { currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
-            if (scaledBaseRect(kThemeNextBounds).contains(p)) { currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            if (scaledBaseRect(kCharacterPrevBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId - 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (scaledBaseRect(kCharacterNextBounds).contains(p)) { audio_.playUiClick(); cfg_.cosmetic.characterId = CharacterRenderer::normalizeID(cfg_.cosmetic.characterId + 1); ctx_.selectedCharacterID = cfg_.cosmetic.characterId; return; }
+            if (scaledBaseRect(kThemePrevBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 3) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
+            if (scaledBaseRect(kThemeNextBounds).contains(p)) { audio_.playUiClick(); currentThemeIndex_ = (currentThemeIndex_ + 1) % 4; setTheme(kThemeNames[currentThemeIndex_]); return; }
         }
     }
 }
@@ -491,19 +551,19 @@ void UIManager::handleLoad(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape)        { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Backspace)     { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter)         { activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Up)            { moveFocus(-3); return; }
-        if (k->code == sf::Keyboard::Key::Down)          { moveFocus(+3); return; }
-        if (k->code == sf::Keyboard::Key::Left)          { moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Right)         { moveFocus(+1); return; }
-        if (k->code == sf::Keyboard::Key::Tab)           { loadTabModeIdx_ = 1 - loadTabModeIdx_; rebuildButtons(); return; }
+        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); handleBack(); return; }
+        if (k->code == sf::Keyboard::Key::Enter) { audio_.playUiClick(); activateFocused(); return; }
+        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); moveFocus(-3); return; }
+        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); moveFocus(+3); return; }
+        if (k->code == sf::Keyboard::Key::Left) { audio_.playUiHover(); moveFocus(-1); return; }
+        if (k->code == sf::Keyboard::Key::Right) { audio_.playUiHover(); moveFocus(+1); return; }
+        if (k->code == sf::Keyboard::Key::Tab) { audio_.playUiClick(); loadTabModeIdx_ = 1 - loadTabModeIdx_; rebuildButtons(); return; }
         if (k->code == sf::Keyboard::Key::Delete)
         {
             const int idx = focusIdx_;
             if (idx >= 0 && idx < (int)SaveStore::kMaxSlots)
             {
+                audio_.playUiClick();
                 saves_.clear(idx, loadTabModeIdx_ == 0 ? GameMode::Classic : GameMode::Endless);
                 rebuildButtons();
             }
@@ -514,26 +574,26 @@ void UIManager::handleLoad(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            // Tab buttons are the first two entries in btns_ on the Load screen.
-            if (!btns_.empty() && btns_[0].contains(mp)) { loadTabModeIdx_ = 0; rebuildButtons(); return; }
-            if (btns_.size() > 1 && btns_[1].contains(mp)) { loadTabModeIdx_ = 1; rebuildButtons(); return; }
+            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+            if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 0; rebuildButtons(); return; }
+            if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 1; rebuildButtons(); return; }
             for (size_t i = 2; i < btns_.size(); ++i)
             {
-                if (btns_[i].consumeClick(mp)) { focusIdx_ = (int)i; activateFocused(); return; }
+                if (btns_[i].consumeClick(mp)) { audio_.playUiClick(); focusIdx_ = (int)i; activateFocused(); return; }
             }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
+        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            if (btns_[i].contains(mp)) {
+                if (focusIdx_ != i) audio_.playUiHover();
+                focusIdx_ = i;
+            }
         }
     }
 }
@@ -547,32 +607,33 @@ void UIManager::handleRanking(const sf::Event& e)
     }
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape)  { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Up)     { rankScrollOffset_ = std::max(0, rankScrollOffset_ - 1); return; }
-        if (k->code == sf::Keyboard::Key::Down)   { rankScrollOffset_ += 1; return; }
-        if (k->code == sf::Keyboard::Key::PageUp) { rankScrollOffset_ = std::max(0, rankScrollOffset_ - 5); return; }
-        if (k->code == sf::Keyboard::Key::PageDown) { rankScrollOffset_ += 5; return; }
-        if (k->code == sf::Keyboard::Key::Tab)    { rankTabModeIdx_ = 1 - rankTabModeIdx_; rankScrollOffset_ = 0; rebuildButtons(); return; }
+        if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); handleBack(); return; }
+        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); rankScrollOffset_ = std::max(0, rankScrollOffset_ - 1); return; }
+        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); rankScrollOffset_ += 1; return; }
+        if (k->code == sf::Keyboard::Key::PageUp) { audio_.playUiHover(); rankScrollOffset_ = std::max(0, rankScrollOffset_ - 5); return; }
+        if (k->code == sf::Keyboard::Key::PageDown) { audio_.playUiHover(); rankScrollOffset_ += 5; return; }
+        if (k->code == sf::Keyboard::Key::Tab) { audio_.playUiClick(); rankTabModeIdx_ = 1 - rankTabModeIdx_; rankScrollOffset_ = 0; rebuildButtons(); return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            if (!btns_.empty() && btns_[0].contains(mp)) { rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); return; }
-            if (btns_.size() > 1 && btns_[1].contains(mp)) { rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); return; }
+            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
+            if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); return; }
+            if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); return; }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
+        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
         for (int i = 0; i < (int)btns_.size(); ++i)
         {
             btns_[i].update(mp);
-            if (btns_[i].contains(mp)) focusIdx_ = i;
+            if (btns_[i].contains(mp)) {
+                if (focusIdx_ != i) audio_.playUiHover();
+                focusIdx_ = i;
+            }
         }
     }
 }
@@ -581,12 +642,17 @@ void UIManager::handleHelp(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Enter)
+        if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Enter) {
+            audio_.playUiClick();
             handleBack();
+        }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
-        if (mm->button == sf::Mouse::Button::Left) handleBack();
+        if (mm->button == sf::Mouse::Button::Left) {
+            audio_.playUiClick();
+            handleBack();
+        }
     }
 }
 
@@ -699,29 +765,32 @@ void UIManager::handlePlay(const sf::Event& e)
 
 void UIManager::handleGameOver(const sf::Event& e)
 {
-    // 1. ADD STANDARD UI BUTTON INTERACTION (Mouse Clicks & Navigation)
+    // 1. ADD STANDARD UI BUTTON INTERACTION
     if (const auto* m = e.getIf<sf::Event::MouseButtonPressed>()) {
         if (m->button == sf::Mouse::Button::Left) {
             int clicked = menuButtonAt(sf::Vector2i(m->position.x, m->position.y));
             if (clicked >= 0) {
+                audio_.playUiClick();
                 focusIdx_ = clicked;
-                activateFocused(); // Activates the clicked button
+                activateFocused();
                 return;
             }
         }
     }
     else if (const auto* k = e.getIf<sf::Event::KeyPressed>()) {
         if (k->code == sf::Keyboard::Key::Up || k->code == sf::Keyboard::Key::W) {
+            audio_.playUiHover();
             moveFocus(-1);
             return;
         }
         else if (k->code == sf::Keyboard::Key::Down || k->code == sf::Keyboard::Key::S) {
+            audio_.playUiHover();
             moveFocus(1);
             return;
         }
         else if (k->code == sf::Keyboard::Key::Enter) {
-            // If we have actual UI buttons on screen, pressing Enter should activate them!
             if (!btns_.empty()) {
+                audio_.playUiClick();
                 activateFocused();
                 return;
             }
@@ -733,6 +802,8 @@ void UIManager::handleGameOver(const sf::Event& e)
     {
         if (k->code == sf::Keyboard::Key::Enter || k->code == sf::Keyboard::Key::R)
         {
+            audio_.playUiClick(); // Click sound on save/restart
+
             if (classicWon_)
             {
                 RunRecord r;
@@ -778,6 +849,7 @@ void UIManager::handlePause(const sf::Event& e)
     {
         if (k->code == sf::Keyboard::Key::Escape)
         {
+            audio_.playUiClick();
             // TẠO BẢN LƯU TRƯỚC KHI THOÁT
             RunRecord r;
             r.name = ctx_.pendingName;
@@ -795,19 +867,15 @@ void UIManager::handlePause(const sf::Event& e)
                 r.score = ctx_.endlessScore;
             }
             r.savedAtUnix = nowUnix();
-
-            // Lưu chính xác tọa độ
             r.playerX = player_.getPosition().x;
             r.playerY = player_.getPosition().y;
             r.cameraY = cameraY_;
-
-            // Đẩy vào slot mới nhất
             saves_.push(r);
-
             handleBack();
         }
         if (k->code == sf::Keyboard::Key::Enter)
         {
+            audio_.playUiClick();
             setState(ctx_.mode == StateContext::Mode::Endless
                 ? UIState::EndlessPlay
                 : UIState::ClassicPlay);
@@ -819,11 +887,16 @@ void UIManager::handleModal(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
-        if (k->code == sf::Keyboard::Key::Escape) { modal_ = Modal::None; return; }
+        if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); modal_ = Modal::None; return; }
         if (k->code == sf::Keyboard::Key::Left || k->code == sf::Keyboard::Key::Right ||
-            k->code == sf::Keyboard::Key::Up   || k->code == sf::Keyboard::Key::Down) { modalFocus_ = 1 - modalFocus_; return; }
+            k->code == sf::Keyboard::Key::Up || k->code == sf::Keyboard::Key::Down) {
+            audio_.playUiHover();
+            modalFocus_ = 1 - modalFocus_;
+            return;
+        }
         if (k->code == sf::Keyboard::Key::Enter)
         {
+            audio_.playUiClick();
             if (modalFocus_ == 0) win_.close();
             else                  modal_ = Modal::None;
             return;
@@ -834,10 +907,10 @@ void UIManager::handleModal(const sf::Event& e)
         if (mm->button == sf::Mouse::Button::Left)
         {
             sf::Vector2f mp = toUiCoords(mm->position);
-            sf::FloatRect yes({ UI_W/2.f - 160, UI_H/2.f + 20 }, { 140, 50 });
-            sf::FloatRect no ({ UI_W/2.f +  20, UI_H/2.f + 20 }, { 140, 50 });
-            if (yes.contains(mp))  win_.close();
-            if (no.contains(mp))   modal_ = Modal::None;
+            sf::FloatRect yes({ UI_W / 2.f - 160, UI_H / 2.f + 20 }, { 140, 50 });
+            sf::FloatRect no({ UI_W / 2.f + 20, UI_H / 2.f + 20 }, { 140, 50 });
+            if (yes.contains(mp)) { audio_.playUiClick(); win_.close(); }
+            if (no.contains(mp)) { audio_.playUiClick(); modal_ = Modal::None; }
         }
     }
 }
@@ -871,10 +944,23 @@ void UIManager::update(float dt)
 
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
+        // 1. Play or Resume traffic if actively playing
+        if (!audio_.vehicleAmbiencePlaying()) {
+            audio_.startVehicleAmbience();
+        }
+
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
         player_.update(dt);
+    }
+
+    else if (state_ == UIState::Pause || state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
+    {
+        // 2. Pause traffic when paused, or in menus like Game Over / Main Menu
+        if (audio_.vehicleAmbiencePlaying()) {
+            audio_.pauseVehicleAmbience();
+        }
     }
 
     if (gameplayStarted_ && state_ == UIState::EndlessPlay)
@@ -967,7 +1053,10 @@ void UIManager::update(float dt)
                             direction dir = ((block.blockID + row) % 2 == 0) ? RIGHT : LEFT;
 
                             if (rand() % 100 < 50) {
-                                const float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
+                                float laneTopY = block.startY + (row * Grid::CELL_SIZE);
+                                float rowY = laneTopY + (Grid::CELL_SIZE * 0.25f);
+                                float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
+
 
                                 bool isBlocked = false;
                                 for (auto obs : Obstacles) {
@@ -995,10 +1084,14 @@ void UIManager::update(float dt)
                                     }
                                     else if (type == LaneType::Animal) {
                                         if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCat(spawnX, laneCenterY - 20.f, dir));
+                                            Obstacles.push_back(new CCat(spawnX, rowY, dir));
+                                            // 10% chance for the cat to meow when it spawns!
+                                            if (rand() % 100 < 10) audio_.playAnimalSample(false); //false = cat
                                         }
                                         else {
-                                            Obstacles.push_back(new CDeer(spawnX, laneCenterY - 30.f, dir));
+                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                            // 3% chance for the deer to grunt when it spawns!
+                                            if (rand() % 100 < 3) audio_.playAnimalSample(true); //true = deer
                                         }
                                     }
                                 }
@@ -1015,7 +1108,7 @@ void UIManager::update(float dt)
                 }
             } // <-- SPAWNER BLOCK ENDS HERE
 
-            // --- 4. TRAFFIC LIGHT SYSTEM (MOVED OUTSIDE SPAWNER TO RUN EVERY FRAME) ---
+            // --- 4. TRAFFIC LIGHT SYSTEM ---
             trafficLightTimer_ += dt;
             if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
                 currentLight_ = TrafficLight::Yellow;
@@ -1065,6 +1158,8 @@ void UIManager::update(float dt)
 
             if (hit) {
                 player_.kill();
+                audio_.playUiCrash();
+                audio_.pauseVehicleAmbience();
                 if (state_ == UIState::ClassicPlay) {
                     ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 }
@@ -1230,10 +1325,35 @@ void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
 
 void UIManager::applyAudioVolumes()
 {
-    // This project does not yet contain an AudioManager. Keep this single
-    // integration point: once it exists, call setSfxVolume(cfg_.volume) and
-    // setMusicVolume(cfg_.musicVolume) here. Slider drag already invokes it
-    // continuously, so no UI code needs to change later.
+    // Settings cua Player la phan tram (0..100). AudioManager nhan them
+    // Base Volume theo category de tao Final_Volume cho tung asset.
+    audio_.setUserVolumes(static_cast<float>(cfg_.musicVolume),
+                          static_cast<float>(cfg_.volume));
+}
+
+bool UIManager::handleDebugAudioMixerKey(const sf::Event::KeyPressed& key)
+{
+    constexpr std::size_t categoryCount = static_cast<std::size_t>(AudioCategory::Count);
+    switch (key.code)
+    {
+    case sf::Keyboard::Key::Up:
+        selectedAudioCategory_ = (selectedAudioCategory_ + categoryCount - 1) % categoryCount;
+        return true;
+    case sf::Keyboard::Key::Down:
+        selectedAudioCategory_ = (selectedAudioCategory_ + 1) % categoryCount;
+        return true;
+    case sf::Keyboard::Key::Left:
+        audio_.adjustBaseVolume(static_cast<AudioCategory>(selectedAudioCategory_), -0.05f);
+        return true;
+    case sf::Keyboard::Key::Right:
+        audio_.adjustBaseVolume(static_cast<AudioCategory>(selectedAudioCategory_), 0.05f);
+        return true;
+    case sf::Keyboard::Key::Space:
+        audio_.playPreview(static_cast<AudioCategory>(selectedAudioCategory_));
+        return true;
+    default:
+        return false;
+    }
 }
 
 int UIManager::menuButtonAt(sf::Vector2i pixel) const
@@ -1573,6 +1693,71 @@ void UIManager::drawMouseDebugInfo()
     win_.draw(debugText_);
 }
 
+void UIManager::drawDebugAudioMixer()
+{
+    if (!fontLoaded_) return;
+
+    // Toa do theo pixel cua cua so de overlay luon de doc o ca man hinh
+    // gameplay (default view) lan cac man UI (uiView_).
+    const sf::Vector2u windowSize = win_.getSize();
+    constexpr float panelWidth = 370.f;
+    constexpr float rowHeight = 38.f;
+    constexpr float panelPadding = 20.f;
+    const float panelHeight = 310.f;
+    const float panelX = std::max(12.f, static_cast<float>(windowSize.x) - panelWidth - 18.f);
+    const float panelY = 18.f;
+
+    sf::RectangleShape panel({ panelWidth, panelHeight });
+    panel.setPosition({ panelX, panelY });
+    panel.setFillColor(sf::Color(12, 17, 25, 230));
+    panel.setOutlineThickness(2.f);
+    panel.setOutlineColor(sf::Color(255, 190, 60));
+    win_.draw(panel);
+
+    sf::Text title(font_, "DEBUG AUDIO MIXER", 23);
+    title.setFillColor(sf::Color(255, 210, 80));
+    title.setPosition({ panelX + panelPadding, panelY + 14.f });
+    win_.draw(title);
+
+    sf::Text subtitle(font_, "Base Volume (developer only)", 15);
+    subtitle.setFillColor(sf::Color(185, 195, 210));
+    subtitle.setPosition({ panelX + panelPadding, panelY + 48.f });
+    win_.draw(subtitle);
+
+    constexpr std::size_t categoryCount = static_cast<std::size_t>(AudioCategory::Count);
+    for (std::size_t i = 0; i < categoryCount; ++i)
+    {
+        const float y = panelY + 78.f + static_cast<float>(i) * rowHeight;
+        const AudioCategory category = static_cast<AudioCategory>(i);
+        const bool selected = i == selectedAudioCategory_;
+        const float value = audio_.baseVolume(category);
+
+        sf::RectangleShape row({ panelWidth - panelPadding * 2.f, rowHeight - 4.f });
+        row.setPosition({ panelX + panelPadding, y });
+        row.setFillColor(selected ? sf::Color(54, 79, 108, 235) : sf::Color(28, 35, 47, 190));
+        win_.draw(row);
+
+        sf::Text label(font_, std::string(selected ? "> " : "  ") +
+                                  AudioManager::displayName(category), 18);
+        label.setFillColor(selected ? sf::Color::White : sf::Color(205, 210, 220));
+        label.setPosition({ panelX + panelPadding + 8.f, y + 4.f });
+        win_.draw(label);
+
+        const std::string percent = std::to_string(static_cast<int>(std::lround(value * 100.f))) + "%";
+        sf::Text valueText(font_, percent, 18);
+        valueText.setFillColor(selected ? sf::Color(255, 220, 90) : sf::Color(180, 220, 255));
+        const sf::FloatRect valueBounds = valueText.getLocalBounds();
+        valueText.setPosition({ panelX + panelWidth - panelPadding - valueBounds.size.x - valueBounds.position.x - 8.f,
+                                y + 4.f });
+        win_.draw(valueText);
+    }
+
+    sf::Text help(font_, "Up/Down: select   Left/Right: -/+5%\nSpace: preview   F8: close", 15);
+    help.setFillColor(sf::Color(185, 195, 210));
+    help.setPosition({ panelX + panelPadding, panelY + panelHeight - 53.f });
+    win_.draw(help);
+}
+
 void UIManager::drawActiveDebugHitboxes()
 {
     const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
@@ -1707,6 +1892,11 @@ void UIManager::render()
         else
             drawActiveDebugHitboxes();
         drawMouseDebugInfo();
+    }
+    if (debugAudioMixer_)
+    {
+        win_.setView(win_.getDefaultView());
+        drawDebugAudioMixer();
     }
     win_.display();
 }

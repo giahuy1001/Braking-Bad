@@ -145,7 +145,8 @@
     <ClCompile Include="src\CTruck.cpp" />
     <ClCompile Include="src\CVehicle.cpp" />
     <ClCompile Include="src\EndlessMap.cpp" />
-    <ClCompile Include="src\MapBackground.cpp" />
+    <ClCompile Include="src\AudioManager.cpp" />
+     <ClCompile Include="src\MapBackground.cpp" />
     <ClCompile Include="src\UIManager.cpp" />
     <ClCompile Include="src\persistence\SaveStore.cpp" />
     <ClCompile Include="src\persistence\RankingStore.cpp" />
@@ -169,6 +170,7 @@
     <ClInclude Include="include\EndlessMap.h" />
     <ClInclude Include="include\MapBackground.h" />
     <ClInclude Include="include\Grid.h" />
+    <ClInclude Include="include\AudioManager.h" />
     <ClInclude Include="include\UIManager.h" />
     <ClInclude Include="include\UIState.h" />
     <ClInclude Include="include\persistence\PlayerProfile.h" />
@@ -176,6 +178,21 @@
     <ClInclude Include="include\persistence\RankingStore.h" />
     <ClInclude Include="include\persistence\SettingsStore.h" />
     <ClInclude Include="include\persistence\ProgressStore.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="assets\audio\bgm.mp3" />
+    <Media Include="assets\audio\bgm.wav" />
+    <Media Include="assets\audio\cat.wav" />
+    <Media Include="assets\audio\crash.mp3" />
+    <Media Include="assets\audio\deer.mp3" />
+    <Media Include="assets\audio\nawhij.wav" />
+    <Media Include="assets\audio\Relaxed Scene.wav" />
+    <Media Include="assets\audio\Seasons (guitar cover).wav" />
+    <Media Include="assets\audio\traffic.wav" />
+    <Media Include="assets\audio\UI.wav" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\audio\bgm.m4a" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

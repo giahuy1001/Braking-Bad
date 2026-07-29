@@ -22,8 +22,3 @@ void CDeer::move(float dt) {
         x -= currentSpeed * dt;
     }
 }
-
-void CDeer::tell() {
-    // Mimics the sound they make in real life
-    std::cout << "Bleat!" << std::endl;
-}

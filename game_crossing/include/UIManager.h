@@ -45,6 +45,7 @@ public:
     // image is missing or cannot be decoded.
     bool setTheme(const std::string& seasonName);
     const std::string& currentTheme() const { return currentTheme_; }
+    void toggleFullscreen();
 
 private:
     // Per-frame phases
@@ -201,4 +202,8 @@ private:
     // AudioManager giu toan bo asset va cong thuc mix; UI chi gui volume
     // nguoi dung va input cua Debug Audio Mixer.
     AudioManager audio_;
+
+    //Fullscreen scaling
+    bool isFullscreen_ = false; 
+    bool pendingFullscreenToggle_ = false;
 };

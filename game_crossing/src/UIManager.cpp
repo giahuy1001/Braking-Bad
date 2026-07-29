@@ -238,7 +238,7 @@ void UIManager::handleEvents()
                 continue;
             }
 
-            // Switch bgms using "N" key
+            // Switch bgms using "F9" key
             if (key->code == sf::Keyboard::Key::F9) {
                 audio_.playUiClick();
                 audio_.cycleBgm(1); // Skips to the next track instantly
@@ -254,6 +254,14 @@ void UIManager::handleEvents()
             {
                 debugUi_ = !debugUi_;
                 std::cout << "[UI Debug] " << (debugUi_ ? "enabled" : "disabled") << '\n';
+                continue;
+            }
+
+            // --- FULLSCREEN TOGGLE ---
+            if (key->code == sf::Keyboard::Key::F11)
+            {
+                audio_.playUiClick();
+                pendingFullscreenToggle_ = true;
                 continue;
             }
         }
@@ -298,6 +306,12 @@ void UIManager::handleEvents()
         case UIState::GameOver:     handleGameOver(*event); break;
         case UIState::Pause:        handlePause(*event);    break;
         }
+    }
+
+    // --- Execute the toggle safely OUTSIDE the event loop ---
+    if (pendingFullscreenToggle_) {
+        toggleFullscreen();
+        pendingFullscreenToggle_ = false;
     }
 }
 
@@ -1855,6 +1869,9 @@ void UIManager::drawCenteredText(const std::string& s, float y, unsigned int siz
 // ---------------------------------------------------------------------
 void UIManager::render()
 {
+    // --- PREVENT THE FRAMEBUFFER ERROR ---
+    if (win_.getSize().x == 0 || win_.getSize().y == 0) return;
+
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
     if (gameplay)
     {
@@ -2234,4 +2251,24 @@ void UIManager::renderPause()
 {
     drawCenteredText("PAUSED", 280, 56, sf::Color::White, true);
     drawCenteredText("Enter to resume   |   Esc to main menu", 360, 22, sf::Color(200, 200, 200));
+}
+
+
+//Fulscreen scaling
+void UIManager::toggleFullscreen()
+{
+    isFullscreen_ = !isFullscreen_;
+
+    if (isFullscreen_) {
+        win_.create(sf::VideoMode::getDesktopMode(), "Braking Bad", sf::State::Fullscreen);
+    }
+    else {
+        // Return to a 1920x1080 window with standard borders
+        win_.create(sf::VideoMode({ 1920, 1080 }), "Braking Bad", sf::Style::Default);
+    }
+
+    // IMPORTANT NOTE: Calling .create() resets the window's framerate and VSync!
+    // If a framerate limit is set in main game_crossing.cpp, it must be
+    // re-applied here so the game doesn't suddenly run at 5000 FPS.
+    win_.setFramerateLimit(60);
 }

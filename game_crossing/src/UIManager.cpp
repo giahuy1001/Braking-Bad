@@ -128,6 +128,8 @@ UIManager::UIManager(sf::RenderWindow& window)
     bool tRed = texTrafficRed_.loadFromFile("assets/props/traffic_red.png");
     (void)tGreen; (void)tYellow; (void)tRed;
 
+    bool tShield = texShieldItem_.loadFromFile("assets/props/shield.png");
+
     trafficLightSprite_.setTexture(texTrafficGreen_, true);
     // Đặt tâm (origin) vào chính giữa bức ảnh
     sf::FloatRect bounds = trafficLightSprite_.getLocalBounds();
@@ -1144,47 +1146,58 @@ void UIManager::update(float dt)
             // -----------------------------------------------------------------------
 
            // --- 5. COLLISION DETECTION ---
-            CGameObject* hitObstacle = nullptr; // Remember WHAT we hit, not just THAT we hit!
+            // TÌM XEM CÓ NHẶT KHIÊN KHÔNG
+            const sf::Vector2f playerPos = player_.getPosition();
+            const int pCol = static_cast<int>(std::floor((playerPos.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
 
-            for (auto obs : Obstacles) {
-                if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
-                    if (player_.isImpact(v)) {
-                        hitObstacle = obs;
+            auto checkShieldPickup = [&](auto& mapBlocks) {
+                for (auto& block : mapBlocks) {
+                    if (block.contains(playerPos.y)) {
+                        int row = static_cast<int>((playerPos.y - block.startY) / Grid::CELL_SIZE);
+                        if (row >= 0 && row < LANES_PER_BLOCK) {
+                            if (Grid::isPlayableColumn(pCol) && block.shieldCols[row] == pCol) {
+                                if (!player_.hasShield()) {
+                                    player_.giveShield();
+                                    audio_.playUiClick(); // Âm thanh nhặt
+                                }
+                                block.shieldCols[row] = -1; // Xóa khiên khỏi map vì đã nhặt
+                            }
+                        }
                         break;
                     }
                 }
+                };
+
+            if (state_ == UIState::EndlessPlay) checkShieldPickup(endlessMap_.getMutableBlocks());
+            else checkShieldPickup(classicMap_.getMutableBlocks());
+
+            // --- 5. COLLISION DETECTION ---
+            bool hit = false;
+            for (auto obs : Obstacles) {
+                if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
+                    if (player_.isImpact(v)) { hit = true; break; }
+                }
                 else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
-                    if (player_.isImpact(a)) {
-                        hitObstacle = obs;
-                        break;
-                    }
+                    if (player_.isImpact(a)) { hit = true; break; }
                 }
             }
 
-            // If hitObstacle is no longer null, a collision occurred!
-            if (hitObstacle) {
-                player_.kill();
-
-                // Determine the correct sound effect to play based on the specific type
-                if (dynamic_cast<CCat*>(hitObstacle)) {
-                    audio_.playAnimalSample(false); // Play the Meow
+            if (hit) {
+                if (player_.isInvincible()) {
+                    // Không làm gì cả vì đang nhấp nháy bất tử
                 }
-                else if (dynamic_cast<CDeer*>(hitObstacle)) {
-                    audio_.playAnimalSample(true);  // Play the Deer grunt
+                else if (player_.hasShield()) {
+                    player_.consumeShield(); // Mất khiên, bắt đầu bất tử 1s
+                    audio_.playUiCrash();
                 }
                 else {
-                    audio_.playUiCrash();           // Play the default metal crunch for cars/trucks
+                    player_.kill();
+                    audio_.playUiCrash();
+                    audio_.pauseVehicleAmbience();
+                    if (state_ == UIState::ClassicPlay) ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                    else ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+                    setState(UIState::GameOver);
                 }
-
-                audio_.pauseVehicleAmbience();
-
-                if (state_ == UIState::ClassicPlay) {
-                    ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
-                }
-                else {
-                    ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
-                }
-                setState(UIState::GameOver);
             }
         }
     }
@@ -2208,6 +2221,33 @@ void UIManager::renderPlay()
     movementText.setFillColor(sf::Color::Black);
     movementText.setPosition({ Grid::MAP_WIDTH + 72.f, 265.f });
     win_.draw(movementText);
+
+    // 1. Vẽ khiên rơi trên đường
+    auto drawShields = [&](const auto& mapBlocks) {
+        for (const auto& block : mapBlocks) {
+            for (int row = 0; row < LANES_PER_BLOCK; ++row) {
+                if (block.shieldCols[row] != -1) {
+                    sf::Sprite s(texShieldItem_);
+                    // Căn giữa tấm ảnh khiên
+                    s.setOrigin({ static_cast<float>(texShieldItem_.getSize().x) / 2.f, static_cast<float>(texShieldItem_.getSize().y) / 2.f });
+                    s.setPosition({ Grid::columnCenter(block.shieldCols[row]), Grid::rowCenter(block.startY, row) - cameraY_ });
+                    win_.draw(s);
+                }
+            }
+        }
+        };
+
+    if (state_ == UIState::EndlessPlay) drawShields(endlessMap_.getBlocks());
+    else drawShields(classicMap_.getBlocks());
+
+    // 2. Vẽ HUD Khiên ở góc trái trên cùng (chỉ hiện khi đang cầm)
+    if (player_.hasShield()) {
+        sf::Sprite hudShield(texShieldItem_);
+        // Chỉnh tọa độ góc trái màn hình gameplay (có thể đổi tỷ lệ scale nếu ảnh quá to)
+        hudShield.setPosition({ 20.f, 20.f });
+        win_.draw(hudShield);
+    }
+
 }
 
 

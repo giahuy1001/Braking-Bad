@@ -2,7 +2,7 @@ S
 A
 A
 V
-S: 4
+S: 7
 A
 V
 V

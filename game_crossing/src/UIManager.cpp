@@ -78,13 +78,13 @@ const sf::FloatRect UIManager::kCharacterNextBounds ({433.f, 562.f}, {43.f, 43.f
 const sf::FloatRect UIManager::kThemePanelBounds    ({1414.f, 409.f}, {351.f, 347.f});
 const sf::FloatRect UIManager::kThemePrevBounds     ({1396.f, 562.f}, {43.f, 43.f});
 const sf::FloatRect UIManager::kThemeNextBounds     ({1740.f, 562.f}, {43.f, 43.f});
-const sf::FloatRect UIManager::kSfxTrackBounds      ({1200.f, 380.f}, {400.f, 20.f});
-const sf::FloatRect UIManager::kSfxDecBounds        ({1130.f, 365.f}, {50.f, 50.f});
-const sf::FloatRect UIManager::kSfxIncBounds        ({1620.f, 365.f}, {50.f, 50.f});
-const sf::FloatRect UIManager::kMusicTrackBounds    ({1200.f, 480.f}, {400.f, 20.f});
-const sf::FloatRect UIManager::kMusicDecBounds      ({1130.f, 465.f}, {50.f, 50.f});
-const sf::FloatRect UIManager::kMusicIncBounds      ({1620.f, 465.f}, {50.f, 50.f});
-const sf::FloatRect UIManager::kSettingOkBounds     ({1390.f, 645.f}, {390.f, 86.f});
+const sf::FloatRect UIManager::kSfxTrackBounds      ({1383.f, 484.f}, {400.f, 20.f});
+const sf::FloatRect UIManager::kSfxDecBounds        ({1313.f, 469.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kSfxIncBounds        ({1803.f, 469.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kMusicTrackBounds    ({1383.f, 690.f}, {400.f, 20.f});
+const sf::FloatRect UIManager::kMusicDecBounds      ({1313.f, 675.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kMusicIncBounds      ({1803.f, 675.f}, {50.f, 50.f});
+const sf::FloatRect UIManager::kSettingOkBounds     ({1504.f, 816.f}, {148.f, 102.f});
 
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),

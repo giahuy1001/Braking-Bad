@@ -2,7 +2,7 @@ S
 V
 A
 V
-S: 4
+S: 9
 A
 V
 A

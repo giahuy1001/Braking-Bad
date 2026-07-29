@@ -1,8 +1,11 @@
+#folders
 .vs/
 x64/
 x86/
 Debug/
 Release/
+
+#objects
 *.obj
 *.pdb
 *.ilk
@@ -11,3 +14,9 @@ Release/
 *.log
 *.exe
 .DS_Store
+
+#save files
+rank_classic.txt
+rank_endless.txt
+saves_classic.txt
+saves_endless.txt

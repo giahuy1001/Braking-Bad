@@ -24,12 +24,12 @@ void AudioManager::loadAssets()
         trafficNoise_.setLooping(true);
 
     // Gameplay SFX buffers
-    if (crashBuf_.loadFromFile("assets/audio/crash.mp3")) {
+    if (crashBuf_.loadFromFile("assets/audio/crash.wav")) {
         crashSound_.emplace(crashBuf_);
         environmentPreviewSound_.emplace(crashBuf_);
     }
     if (catBuf_.loadFromFile("assets/audio/cat.wav")) catSound_.emplace(catBuf_);
-    if (deerBuf_.loadFromFile("assets/audio/deer.mp3")) deerSound_.emplace(deerBuf_);
+    if (deerBuf_.loadFromFile("assets/audio/deer.wav")) deerSound_.emplace(deerBuf_);
 
     // UI SFX buffers (The ones we just added!)
     if (clickBuf_.loadFromFile("assets/audio/UI.wav")) {

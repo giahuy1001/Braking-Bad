@@ -1139,27 +1139,41 @@ void UIManager::update(float dt)
             }
             // -----------------------------------------------------------------------
 
-            // --- 5. COLLISION DETECTION ---
-            bool hit = false;
+           // --- 5. COLLISION DETECTION ---
+            CGameObject* hitObstacle = nullptr; // Remember WHAT we hit, not just THAT we hit!
+
             for (auto obs : Obstacles) {
                 if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
                     if (player_.isImpact(v)) {
-                        hit = true;
+                        hitObstacle = obs;
                         break;
                     }
                 }
                 else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
                     if (player_.isImpact(a)) {
-                        hit = true;
+                        hitObstacle = obs;
                         break;
                     }
                 }
             }
 
-            if (hit) {
+            // If hitObstacle is no longer null, a collision occurred!
+            if (hitObstacle) {
                 player_.kill();
-                audio_.playUiCrash();
+
+                // Determine the correct sound effect to play based on the specific type
+                if (dynamic_cast<CCat*>(hitObstacle)) {
+                    audio_.playAnimalSample(false); // Play the Meow
+                }
+                else if (dynamic_cast<CDeer*>(hitObstacle)) {
+                    audio_.playAnimalSample(true);  // Play the Deer grunt
+                }
+                else {
+                    audio_.playUiCrash();           // Play the default metal crunch for cars/trucks
+                }
+
                 audio_.pauseVehicleAmbience();
+
                 if (state_ == UIState::ClassicPlay) {
                     ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 }

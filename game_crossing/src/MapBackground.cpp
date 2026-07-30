@@ -1,3 +1,7 @@
+/**
+ * @file MapBackground.cpp
+ * @brief Implements UI rendering and interaction behavior.
+ */
 #include "MapBackground.h"
 #include "Grid.h"
 #include <algorithm>
@@ -14,6 +18,9 @@ std::string lower(std::string value) {
 
 void MapBackground::clear() { assets_.clear(); order_.clear(); }
 
+/**
+ * @brief Performs the load theme operation while preserving the current UI state invariants.
+ */
 bool MapBackground::loadTheme(const std::string& season)
 {
     clear();
@@ -37,6 +44,9 @@ bool MapBackground::loadTheme(const std::string& season)
     return !order_.empty();
 }
 
+/**
+ * @brief Performs the available level numbers operation while preserving the current UI state invariants.
+ */
 std::vector<int> MapBackground::availableLevelNumbers() const
 {
     constexpr const char* prefix = "map_level_";
@@ -45,12 +55,15 @@ std::vector<int> MapBackground::availableLevelNumbers() const
         if (key.rfind(prefix, 0) != 0) continue;
         const std::string suffix = key.substr(std::char_traits<char>::length(prefix));
         if (suffix.empty() || !std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) { return std::isdigit(c) != 0; }))
-            continue; // Ignore split-level images such as map_level_6.1.
+            continue;
         levels.push_back(std::stoi(suffix));
     }
     return levels;
 }
 
+/**
+ * @brief Performs the resolve operation while preserving the current UI state invariants.
+ */
 const MapBackground::Asset* MapBackground::resolve(const std::string& key, std::uint32_t fallbackIndex) const
 {
     if (const auto it = assets_.find(key); it != assets_.end()) return it->second.get();
@@ -58,6 +71,9 @@ const MapBackground::Asset* MapBackground::resolve(const std::string& key, std::
     return assets_.at(order_[fallbackIndex % order_.size()]).get();
 }
 
+/**
+ * @brief Performs the draw block operation while preserving the current UI state invariants.
+ */
 void MapBackground::drawBlock(sf::RenderTarget& target, const std::string& key, std::uint32_t fallbackIndex, float worldStartY, float blockHeight, float cameraY) const
 {
     const Asset* asset = resolve(key, fallbackIndex);
@@ -67,8 +83,7 @@ void MapBackground::drawBlock(sf::RenderTarget& target, const std::string& key, 
     sf::Sprite sprite = asset->sprite;
     const sf::Vector2u size = asset->texture.getSize();
     if (size.x == 0 || size.y == 0) return;
-    // Map art is authored at 1920x1080 (one MapBlock). Keep its native pixel
-    // size; only its Y position changes as the world camera scrolls.
+
     sprite.setPosition({ 0.f, screenY });
     target.draw(sprite);
 }

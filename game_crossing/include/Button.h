@@ -1,3 +1,7 @@
+/**
+ * @file Button.h
+ * @brief Reusable interactive button control used by the game user interface.
+ */
 #pragma once
 
 #include <SFML/Graphics.hpp>
@@ -5,46 +9,57 @@
 #include <string>
 #include <functional>
 
-// ---------------------------------------------------------------------
-//  Reusable rectangular button widget.
-//
-//  Supports both mouse (hover + click) and keyboard (focus + Enter).
-//  The "small icon on the right side of the screen" described in the
-//  spec is just a Button with size = {40, 40} and an arrow glyph.
-//
-//  Action on activation: invokes callback_.  We do NOT encode the target
-//  UIState here because the same button (e.g. "Back") needs different
-//  transitions depending on which screen we are on — the UIManager owns
-//  that mapping.
-// ---------------------------------------------------------------------
+/**
+ * @brief Represents one mouse- and keyboard-accessible UI control.
+ *
+ * The control stores transient hover and activation latches; navigation and
+ * screen transitions remain the responsibility of UIManager.
+ */
 class Button
 {
 public:
+    /** @brief Visual treatment applied to a button. */
     enum class Style { Primary, Subtle, Danger, IconOnly };
 
+    /** @brief Constructs a button.
+     * @param font Font used to measure the initial label.
+     * @param pos Logical UI position.
+     * @param size Logical UI size.
+     * @param label Visible button text.
+     * @param style Visual treatment.
+     */
     Button(const sf::Font& font,
            sf::Vector2f pos, sf::Vector2f size, std::string label,
            Style style = Style::Primary);
 
-    // Geometry helpers
+    /** @return The button position. */
     sf::Vector2f position() const { return box_.getPosition(); }
+    /** @return The button dimensions. */
     sf::Vector2f size()     const { return box_.getSize(); }
+    /** @return The button hitbox. */
     sf::FloatRect bounds()  const { return box_.getGlobalBounds(); }
 
-    // State
+    /** @param e Enables or disables interaction. */
     void setEnabled(bool e);
+    /** @return True when interaction is enabled. */
     bool isEnabled() const { return enabled_; }
+    /** @param f Selects keyboard focus. */
     void setFocused(bool f);
+    /** @param s Replacement visible label. */
     void setLabel(const std::string& s);
-    void setAlpha(float a);                 // 0..1, used for Back icon fade
+    /** @param a Opacity in the inclusive range [0, 1]. */
+    void setAlpha(float a);
 
-    // Event helpers
+    /** @param mousePos Pointer position in UI coordinates. */
     void update(sf::Vector2f mousePos);
+    /** @param mousePos Pointer position in UI coordinates. @return True when the hitbox contains it. */
     bool contains(sf::Vector2f mousePos) const;
-    bool consumeClick(sf::Vector2f mousePos);   // returns true exactly once per press
-    bool consumeEnter();                        // returns true exactly once per Enter
+    /** @param mousePos Pointer position in UI coordinates. @return True once for an armed click. */
+    bool consumeClick(sf::Vector2f mousePos);
+    /** @return True once for an armed Enter activation. */
+    bool consumeEnter();
 
-    // Draw
+    /** @param win Destination render window. @param font Font attached before rendering. */
     void draw(sf::RenderWindow& win, const sf::Font& font);
 
 private:
@@ -54,11 +69,11 @@ private:
     bool               enabled_     = true;
     bool               hovered_     = false;
     bool               focused_     = false;
-    bool               clickArmed_  = false;     // latches between press/release
+    bool               clickArmed_  = false;
     bool               enterArmed_  = false;
     float              alpha_       = 1.0f;
-    bool               fontAttached_= false;     // sf::Text has no default ctor;
-                                                // we attach the font lazily in draw()
+    bool               fontAttached_= false;
 
+    /** @brief Applies colors derived from interaction state and style. */
     void applyColors();
 };

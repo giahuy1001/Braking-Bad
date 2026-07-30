@@ -1,52 +1,77 @@
+/**
+ * @file UIState.h
+ * @brief Shared UI state, transition context, and modal-layer declarations.
+ */
 #pragma once
 
-// ---------------------------------------------------------------------
-//  UI state machine for the whole game.
-//
-//  Replaces the original 5-state skeleton (Menu/Classic/Endless/GameOver/Quit).
-//  Every visible screen — including the modal Exit prompt — is a value here
-//  except the modal, which is layered on top via UIManager::modal_.
-//
-//  Transition table is documented in the design notes (see plan §2).
-// ---------------------------------------------------------------------
+#include <string>
+
+/** @brief Identifies every mutually exclusive screen managed by UIManager. */
 enum class UIState : unsigned char
 {
-    Boot = 0,             // logo + team name, auto-advance after timer
-    MainMenu,             // New Game / Load / Ranking / Setting / Graphic / Help / Exit
-    ModeSelect,           // Classic vs Endless (entry from "New Game")
-    NameInput,            // asks for player name, validates per rules
-    LevelSelect,          // Classic only: 10 tiles with tick marks
-    Setting,              // volume slider
-    Graphic,              // character + background selectors
-    LoadGame,             // 3 slots x 2 modes
-    Ranking,              // top 10 leaderboard, 2 tabs
-    Help,                 // static instructions
-    ClassicPlay,          // gameplay (owned by gameplay team)
-    EndlessPlay,          // gameplay
-    GameOver,             // post-run summary
-    Pause                 // optional, exposed for future use
+    /** @brief Timed startup screen. */
+    Boot = 0,
+    /** @brief Main navigation screen. */
+    MainMenu,
+    /** @brief Game-mode selection screen. */
+    ModeSelect,
+    /** @brief Player-name input screen. */
+    NameInput,
+    /** @brief Classic-level selection screen. */
+    LevelSelect,
+    /** @brief Audio settings screen. */
+    Setting,
+    /** @brief Theme and character selection screen. */
+    Graphic,
+    /** @brief Saved-run selection screen. */
+    LoadGame,
+    /** @brief Leaderboard screen. */
+    Ranking,
+    /** @brief Game instructions screen. */
+    Help,
+    /** @brief Active classic gameplay screen. */
+    ClassicPlay,
+    /** @brief Active endless gameplay screen. */
+    EndlessPlay,
+    /** @brief Post-run results screen. */
+    GameOver,
+    /** @brief Paused-game overlay state. */
+    Pause
 };
 
-// Carried between state transitions so we don't lose context when navigating.
+/** @brief Preserves game-selection and run data across UI state transitions. */
 struct StateContext
 {
+    /** @brief Specifies the game mode associated with a pending or active run. */
     enum class Mode : unsigned char { None, Classic, Endless };
 
+    /** @brief Selected game mode. */
     Mode        mode          = Mode::None;
-    int         level         = 0;     // 1..10 for ClassicPlay
+    /** @brief Selected classic level. */
+    int         level         = 0;
+    /** @brief Selected character identifier. */
     int         selectedCharacterID = 1;
-    std::string pendingName;           // captured by NameInput
-    int         endlessScore  = 0;     // written into ranking on GameOver
+    /** @brief Validated player name awaiting run creation. */
+    std::string pendingName;
+    /** @brief Recorded endless-run score. */
+    int         endlessScore  = 0;
+    /** @brief Recorded endless-run duration in seconds. */
     int         endlessSec    = 0;
-    int         classicLevel  = 0;     // highest reached, written on GameOver
-    int         classicSec    = 0;     // total time spent, written on GameOver
+    /** @brief Highest classic level reached. */
+    int         classicLevel  = 0;
+    /** @brief Recorded classic-run duration in seconds. */
+    int         classicSec    = 0;
 };
 
-// Modal layers drawn on top of the current state.
+/** @brief Identifies an optional dialog layered above the active screen. */
 enum class Modal : unsigned char
 {
+    /** @brief No modal is active. */
     None = 0,
+    /** @brief Requests confirmation before leaving the application. */
     ConfirmExit,
+    /** @brief Requests confirmation before saving a run. */
     SaveGame,
+    /** @brief Requests confirmation before abandoning a run. */
     QuitGame
 };

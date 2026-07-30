@@ -519,7 +519,7 @@ private:
     bool       fontLoaded_ = false;
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
     ///< Internal storage used to coordinate UI state and rendering.
-                settingButtonTex_, logoTex_, iconsTex_, loadingTex_;
+                settingButtonTex_, logoTex_, iconsTex_, loadingScreen1Tex_, loadingScreen2Tex_;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
 
@@ -618,7 +618,11 @@ private:
     ///< Internal storage used to coordinate UI state and rendering.
     std::string nameBuffer_;
     ///< Internal storage used to coordinate UI state and rendering.
+    /** Identifies the current step of the startup artwork sequence. */
+    enum class LoadingPhase : unsigned char { ShowScreen1, Fading, ShowScreen2Waiting };
     sf::View     loadingView_;
+    LoadingPhase loadingPhase_ = LoadingPhase::ShowScreen1;
+    float        loadingPhaseElapsed_ = 0.f;
     float        loadingBlinkElapsed_ = 0.f;
     float        loadingZoomElapsed_ = 0.f;
     bool         loadingTransitionActive_ = false;

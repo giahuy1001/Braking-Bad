@@ -1023,7 +1023,7 @@ void UIManager::handleGameOver(const sf::Event& e)
                 ranks_.submit(r);
 
                 classicWon_ = false;
-                setState(UIState::LevelSelect);
+                setState(UIState::MainMenu);
                 return;
             }
 

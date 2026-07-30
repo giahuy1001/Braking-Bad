@@ -725,13 +725,13 @@ void UIManager::handlePlay(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
 
         const bool isMove = k->code == sf::Keyboard::Key::Left ||
-                            k->code == sf::Keyboard::Key::Right ||
-                            k->code == sf::Keyboard::Key::Up ||
-                            k->code == sf::Keyboard::Key::Down ||
-                            k->code == sf::Keyboard::Key::A ||
-                            k->code == sf::Keyboard::Key::D ||
-                            k->code == sf::Keyboard::Key::W ||
-                            k->code == sf::Keyboard::Key::S;
+            k->code == sf::Keyboard::Key::Right ||
+            k->code == sf::Keyboard::Key::Up ||
+            k->code == sf::Keyboard::Key::Down ||
+            k->code == sf::Keyboard::Key::A ||
+            k->code == sf::Keyboard::Key::D ||
+            k->code == sf::Keyboard::Key::W ||
+            k->code == sf::Keyboard::Key::S;
         if (!isMove) return;
 
         // Once the player is fully below the viewport, ignore every movement
@@ -761,71 +761,6 @@ void UIManager::handlePlay(const sf::Event& e)
                                     { Grid::playableRightCenter() - Grid::playableLeftCenter(),
                                       maxY - minY } });
         player_.handleInput(k->code);
-        const sf::Vector2f playerPosition = player_.getPosition();
-
-        // ĐOẠN CODE CẦN THÊM: Kiểm tra xem người chơi có đạp trúng nắp cống không
-        // Both values are zero-based Grid columns.  Map-file columns are
-        // converted from 1-based to 0-based by loadMapFromFile().
-        const int playerCol = static_cast<int>(std::floor(
-            (playerPosition.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
-        bool steppedOnManhole = false;
-
-        auto checkManhole = [&](const auto& mapBlocks) {
-            for (const auto& block : mapBlocks) {
-                // Kiểm tra xem người chơi đang đứng trong block (bản đồ) nào
-                if (block.contains(playerPosition.y)) {
-                    // Tính toán xem đang đứng ở hàng (row) thứ mấy trong block đó
-                    int row = static_cast<int>((playerPosition.y - block.startY) / Grid::CELL_SIZE);
-                    if (row >= 0 && row < LANES_PER_BLOCK) {
-                        // Nếu vị trí cột của người chơi trùng với cột có nắp cống (-1 là không có)
-                        if (Grid::isPlayableColumn(playerCol) &&
-                            block.manholeCols[row] == playerCol) {
-                            steppedOnManhole = true;
-                        }
-                    }
-                    break; // Đã tìm thấy block hiện tại nên không cần duyệt tiếp
-                }
-            }
-            };
-
-        // Áp dụng kiểm tra cho chế độ tương ứng
-        if (state_ == UIState::ClassicPlay) {
-            checkManhole(classicMap_.getBlocks());
-        }
-        else if (state_ == UIState::EndlessPlay) {
-            checkManhole(endlessMap_.getBlocks());
-        }
-
-        // Xử lý GameOver nếu đạp trúng nắp cống
-        if (steppedOnManhole) {
-            // --- AUDIO TRIGGERS ---
-            audio_.playFallSound();          // Play the falling sound
-            audio_.pauseVehicleAmbience();   // Silence the road traffic
-
-            player_.kill();
-            if (state_ == UIState::EndlessPlay) {
-                finishEndlessRun();
-            }
-            else {
-                classicWon_ = false; // Đánh dấu thua game ở chế độ Classic
-                ctx_.classicLevel = ctx_.level;
-                ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
-                setState(UIState::GameOver);
-            }
-            return; // Dừng hàm tại đây để không cập nhật thêm logic chiến thắng
-        }
-
-        // The centre of the final block's top row is the Classic finish tile.
-        if (state_ == UIState::ClassicPlay &&
-            player_.getPosition().y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
-        {
-            classicWon_ = true;
-            ctx_.classicLevel = ctx_.level;
-            ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
-            prog_.setHighestUnlockedLevel(std::max(prog_.highestUnlockedLevel(),
-                                                   std::min(CLASSIC_LEVELS, ctx_.level + 1)));
-            setState(UIState::GameOver);
-        }
     }
 }
 
@@ -1055,9 +990,65 @@ void UIManager::update(float dt)
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
-        player_.update(dt);
-    }
+        player_.update(dt); // CẬP NHẬT HOẠT ẢNH TRƯỢT CỦA PLAYER TẠI ĐÂY
 
+        // =========================================================================
+        // KIỂM TRA THẮNG / SỤP CỐNG NGAY LẬP TỨC (Không cần đợi bấm phím)
+        // =========================================================================
+        const sf::Vector2f playerPos = player_.getPosition();
+
+        // Kiểm tra Win Classic
+        if (state_ == UIState::ClassicPlay &&
+            playerPos.y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
+        {
+            classicWon_ = true;
+            ctx_.classicLevel = ctx_.level;
+            ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+            prog_.setHighestUnlockedLevel(std::max(prog_.highestUnlockedLevel(),
+                std::min(CLASSIC_LEVELS, ctx_.level + 1)));
+            setState(UIState::GameOver);
+            return; // Đã thắng thì ngừng tính toán thêm
+        }
+
+        // Kiểm tra Sụp cống
+        const int playerCol = static_cast<int>(std::floor((playerPos.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
+        bool steppedOnManhole = false;
+
+        auto checkManhole = [&](const auto& mapBlocks) {
+            for (const auto& block : mapBlocks) {
+                if (block.contains(playerPos.y)) {
+                    int row = static_cast<int>((playerPos.y - block.startY) / Grid::CELL_SIZE);
+                    if (row >= 0 && row < LANES_PER_BLOCK) {
+                        if (Grid::isPlayableColumn(playerCol) && block.manholeCols[row] == playerCol) {
+                            steppedOnManhole = true;
+                        }
+                    }
+                    break;
+                }
+            }
+            };
+
+        if (state_ == UIState::ClassicPlay) checkManhole(classicMap_.getBlocks());
+        else if (state_ == UIState::EndlessPlay) checkManhole(endlessMap_.getBlocks());
+
+        if (steppedOnManhole) {
+            audio_.playFallSound();          // Play the falling sound
+            audio_.pauseVehicleAmbience();   // Silence the road traffic
+            player_.kill();
+
+            if (state_ == UIState::EndlessPlay) {
+                finishEndlessRun();
+            }
+            else {
+                classicWon_ = false; // Đánh dấu thua
+                ctx_.classicLevel = ctx_.level;
+                ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                setState(UIState::GameOver);
+            }
+            return; // Đã sụp cống thì ngừng tính toán thêm
+        }
+        // =========================================================================
+    }
     else if (state_ == UIState::Pause || state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
     {
         // 2. Pause traffic when paused, or in menus like Game Over / Main Menu
@@ -1107,10 +1098,10 @@ void UIManager::update(float dt)
 
                     const LaneType lane = block.lanes[row];
                     return (dynamic_cast<const CVehicle*>(obstacle) != nullptr && lane == LaneType::Vehicle) ||
-                           (dynamic_cast<const CAnimal*>(obstacle) != nullptr && lane == LaneType::Animal);
+                        (dynamic_cast<const CAnimal*>(obstacle) != nullptr && lane == LaneType::Animal);
                 }
                 return false;
-            };
+                };
 
             // 2. Clean up off-screen or invalid-lane actors with swap-and-pop.
             for (int i = 0; i < Obstacles.size(); ) {
@@ -1267,7 +1258,6 @@ void UIManager::update(float dt)
             else checkShieldPickup(classicMap_.getMutableBlocks());
 
             // --- 5. COLLISION DETECTION ---
-            // --- 5. COLLISION DETECTION ---
             CGameObject* hitObstacle = nullptr; // Remember WHAT we hit
 
             for (auto obs : Obstacles) {
@@ -1316,7 +1306,6 @@ void UIManager::update(float dt)
         }
     }
 }
-
 // ---------------------------------------------------------------------
 //  State management helpers
 // ---------------------------------------------------------------------

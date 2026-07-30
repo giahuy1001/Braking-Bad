@@ -232,7 +232,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     };
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
-    sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode, newWin, newLose;
+    sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode, newWin, newLose, newIconTheme;
 
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
@@ -258,6 +258,11 @@ bool UIManager::setTheme(const std::string& seasonName)
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
+    // The active season's icon is shared by Graphic preview and Level cards.
+    if (load(newIconTheme, "IconTheme", false))
+        iconThemeTex_ = std::move(newIconTheme);
+    else
+        std::cerr << "[UIManager] missing IconTheme.png for theme '" << seasonName << "'\n";
     levelBgAssetLoaded_ = load(newLevel, "Level", false);
     if (levelBgAssetLoaded_)
         levelBgTex_ = std::move(newLevel);
@@ -2572,6 +2577,21 @@ void UIManager::renderLvlSel()
         card.setOutlineThickness(4.f);
         card.setOutlineColor(sf::Color(205, 240, 255));
         win_.draw(card);
+
+        // IconTheme is loaded once by setTheme(). Preserve its aspect ratio
+        // and leave a small inset so it does not cover the card border.
+        if (iconThemeTex_.getSize().x != 0 && iconThemeTex_.getSize().y != 0) {
+            sf::Sprite icon(iconThemeTex_);
+            const sf::Vector2u iconSize = iconThemeTex_.getSize();
+            const float inset = 16.f;
+            const float fit = std::min((bounds.size.x - inset * 2.f) / iconSize.x,
+                                       (bounds.size.y - inset * 2.f) / iconSize.y);
+            icon.setScale({ fit, fit });
+            icon.setOrigin({ iconSize.x * .5f, iconSize.y * .5f });
+            icon.setPosition({ bounds.position.x + bounds.size.x * .5f,
+                               bounds.position.y + bounds.size.y * .5f });
+            win_.draw(icon);
+        }
 
         sf::Text number(font_, std::to_string(i + 1),
                         32);

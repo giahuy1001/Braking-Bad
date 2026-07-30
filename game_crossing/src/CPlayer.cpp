@@ -2,10 +2,12 @@
 #include "CharacterRenderer.h"
 #include "Grid.h"
 #include <algorithm>
+#include <cmath>
 
 CPlayer::CPlayer(sf::Vector2f spawnPosition, int skinID, float radius)
     : CGameObject(spawnPosition.x, spawnPosition.y, radius * 2.f, radius * 2.f),
-    spawnPosition_(spawnPosition), radius_(radius)
+    spawnPosition_(spawnPosition), radius_(radius),
+    targetX_(spawnPosition.x), targetY_(spawnPosition.y)
 {
     setSkin(skinID);
 }
@@ -14,8 +16,9 @@ void CPlayer::setSpawnPosition(sf::Vector2f pos) { spawnPosition_ = pos; }
 
 void CPlayer::resetPosition() {
     x = spawnPosition_.x; y = spawnPosition_.y;
+    targetX_ = x; targetY_ = y;
     moving_ = false; hasShield_ = false; invincibleTimer_ = 0.f;
-    facingDir_ = 0; animFrame_ = 1; // Nhìn xuống và đứng im
+    facingDir_ = 0; animFrame_ = 1; animTimer_ = 0.f;
     revive();
 }
 
@@ -27,7 +30,9 @@ bool CPlayer::isMoving() const { return moving_; }
 sf::Vector2f CPlayer::getPosition() const { return { x, y }; }
 
 void CPlayer::setPosition(sf::Vector2f pos) {
-    x = pos.x; y = pos.y; moving_ = false;
+    x = pos.x; y = pos.y;
+    targetX_ = x; targetY_ = y;
+    moving_ = false;
 }
 
 sf::FloatRect CPlayer::getBounds() const {
@@ -68,19 +73,72 @@ void CPlayer::handleInput(sf::Keyboard::Key key)
     }
 }
 
+void CPlayer::moveByGridStep(float dx, float dy)
+{
+    if (!alive_) return;
+
+    // Khoá phím: Chỉ cho phép bước tiếp khi đã đến (hoặc sắp đến) đích của bước trước đó
+    if (std::abs(x - targetX_) > 5.f || std::abs(y - targetY_) > 5.f) return;
+
+    float nextX = targetX_ + dx;
+    float nextY = targetY_ + dy;
+
+    nextX = std::clamp(nextX, movementBounds_.position.x,
+        movementBounds_.position.x + movementBounds_.size.x);
+
+    if (dy == 0.f || (nextY >= movementBounds_.position.y &&
+        nextY <= movementBounds_.position.y + movementBounds_.size.y)) {
+        targetY_ = nextY;
+    }
+
+    targetX_ = nextX;
+    moving_ = true;
+}
+
 void CPlayer::update(float dt) {
     if (invincibleTimer_ > 0.f) invincibleTimer_ -= dt;
 
-    // Nếu có nhận tín hiệu di chuyển, chuyển đổi luân phiên giữa cột 0 và 2 để tạo cảm giác bước chân
-    if (moving_) {
-        animFrame_ = (animFrame_ == 0) ? 2 : 0;
+    bool isMovingNow = false;
+
+    // 1. DI CHUYỂN MƯỢT (Nội suy trục X và Y tiến dần về đích)
+    if (std::abs(x - targetX_) > 0.1f || std::abs(y - targetY_) > 0.1f) {
+        isMovingNow = true;
+
+        if (x < targetX_) {
+            x += moveSpeed_ * dt;
+            if (x > targetX_) x = targetX_; // Tránh đi quá lố
+        }
+        else if (x > targetX_) {
+            x -= moveSpeed_ * dt;
+            if (x < targetX_) x = targetX_;
+        }
+
+        if (y < targetY_) {
+            y += moveSpeed_ * dt;
+            if (y > targetY_) y = targetY_;
+        }
+        else if (y > targetY_) {
+            y -= moveSpeed_ * dt;
+            if (y < targetY_) y = targetY_;
+        }
     }
     else {
-        // Đứng im thì trả về cột giữa (index 1)
-        animFrame_ = 1;
+        moving_ = false;
     }
 
-    moving_ = false;
+    // 2. LÀM CHẬM ANIMATION
+    if (isMovingNow) {
+        animTimer_ += dt;
+        // Cứ mỗi 0.1 giây mới nhấc chân 1 lần (tạo cảm giác đi bộ chân thật)
+        if (animTimer_ >= 0.1f) {
+            animFrame_ = (animFrame_ == 0) ? 2 : 0;
+            animTimer_ = 0.f;
+        }
+    }
+    else {
+        animFrame_ = 1; // Đứng im chụm chân
+        animTimer_ = 0.f;
+    }
 }
 
 void CPlayer::draw(sf::RenderWindow& window, float cameraY) {
@@ -88,25 +146,7 @@ void CPlayer::draw(sf::RenderWindow& window, float cameraY) {
         if (static_cast<int>(invincibleTimer_ * 15.f) % 2 == 0) return;
     }
 
-    // Truyền hướng mặt (facingDir_) và nhịp bước (animFrame_) vào để vẽ ảnh
     CharacterRenderer::draw(window, skinID_, { x, y - cameraY }, radius_, facingDir_, animFrame_);
-}
-
-void CPlayer::moveByGridStep(float dx, float dy)
-{
-    if (!alive_) return;
-
-    float nextX = x + dx;
-    float nextY = y + dy;
-
-    nextX = std::clamp(nextX, movementBounds_.position.x,
-        movementBounds_.position.x + movementBounds_.size.x);
-    if (dy == 0.f || (nextY >= movementBounds_.position.y &&
-        nextY <= movementBounds_.position.y + movementBounds_.size.y))
-        y = nextY;
-
-    x = nextX;
-    moving_ = true; // Bật cờ di chuyển để update() biết và đổi frame ảnh
 }
 
 bool CPlayer::isImpact(CVehicle* vehicle) {

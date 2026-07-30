@@ -55,6 +55,11 @@ private:
     float invincibleTimer_ = 0.f;
 
     // --- ANIMATION STATE ---
-    int facingDir_ = 0; // 0: Down, 1: Left, 2: Right, 3: Up
-    int animFrame_ = 1; // Cột 1 là thế đứng im
+    int facingDir_ = 0;
+    int animFrame_ = 1;
+    float animTimer_ = 0.f;
+
+    float targetX_ = 0.f;
+    float targetY_ = 0.f;
+    float moveSpeed_ = 600.f; // Tốc độ trượt (pixel/giây). Chỉnh số này để đi nhanh hay chậm!
 };

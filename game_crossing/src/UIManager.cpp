@@ -92,19 +92,24 @@ const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
     sf::FloatRect({ 1807.f, 980.f }, { 94.f, 94.f })
 };
 
-// Authored 1920x1080 coordinates. The ten square cards sit inside Level.png's
-// dark-blue panel; labels are drawn immediately beneath each card.
+// Local Level.png coordinates (its original 1137x852 bounds). The image is
+// centered without scaling, so these retain the artwork's exact geometry.
 const std::array<sf::FloatRect, 10> UIManager::kLevelButtonBounds = {
-    sf::FloatRect({ 310.f, 300.f }, { 200.f, 200.f }),
-    sf::FloatRect({ 595.f, 300.f }, { 200.f, 200.f }),
-    sf::FloatRect({ 880.f, 300.f }, { 200.f, 200.f }),
-    sf::FloatRect({1165.f, 300.f }, { 200.f, 200.f }),
-    sf::FloatRect({1450.f, 300.f }, { 200.f, 200.f }),
-    sf::FloatRect({ 310.f, 610.f }, { 200.f, 200.f }),
-    sf::FloatRect({ 595.f, 610.f }, { 200.f, 200.f }),
-    sf::FloatRect({ 880.f, 610.f }, { 200.f, 200.f }),
-    sf::FloatRect({1165.f, 610.f }, { 200.f, 200.f }),
-    sf::FloatRect({1450.f, 610.f }, { 200.f, 200.f })
+    sf::FloatRect({190.f, 245.f}, {125.f, 125.f}),
+    sf::FloatRect({340.f, 245.f}, {125.f, 125.f}),
+    sf::FloatRect({490.f, 245.f}, {125.f, 125.f}),
+    sf::FloatRect({640.f, 245.f}, {125.f, 125.f}),
+    sf::FloatRect({790.f, 245.f}, {125.f, 125.f}),
+    sf::FloatRect({190.f, 500.f}, {125.f, 125.f}),
+    sf::FloatRect({340.f, 500.f}, {125.f, 125.f}),
+    sf::FloatRect({490.f, 500.f}, {125.f, 125.f}),
+    sf::FloatRect({640.f, 500.f}, {125.f, 125.f}),
+    sf::FloatRect({790.f, 500.f}, {125.f, 125.f})
+};
+
+const std::array<sf::FloatRect, 2> UIManager::kGameModeButtonBounds = {
+    sf::FloatRect({ 516.f, 485.f }, { 410.f, 442.f }),
+    sf::FloatRect({1040.f, 488.f }, { 410.f, 440.f })
 };
 
 const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
@@ -238,7 +243,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     };
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
-    sf::Texture newScoreTable, newSave, newQuit, newLevel;
+    sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode;
     // Load artwork is supplied as assets/theme/<season>/Load.png.
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
@@ -270,6 +275,18 @@ bool UIManager::setTheme(const std::string& seasonName)
         levelBgTex_ = std::move(newLevel);
     else
         std::cerr << "[UIManager] missing Level.png for theme '" << seasonName << "'\n";
+
+    userNameBgAssetLoaded_ = load(newUserName, "UserName", false);
+    if (userNameBgAssetLoaded_)
+        userNameBgTex_ = std::move(newUserName);
+    else
+        std::cerr << "[UIManager] missing UserName.png for theme '" << seasonName << "'\n";
+
+    gameModeBgAssetLoaded_ = load(newGameMode, "GameMode", false);
+    if (gameModeBgAssetLoaded_)
+        gameModeBgTex_ = std::move(newGameMode);
+    else
+        std::cerr << "[UIManager] missing GameMode.png for theme '" << seasonName << "'\n";
     // Gameplay artwork is cached with the rest of the theme.  It is never
     // loaded from renderPlay() or an event handler.
     scoreTableAssetLoaded_ = load(newScoreTable, "ScoreTable", false);
@@ -525,46 +542,65 @@ void UIManager::handleModeSel(const sf::Event& e)
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter) { activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Up)   { moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Down) { moveFocus(+1); return; }
+        if (k->code == sf::Keyboard::Key::Left || k->code == sf::Keyboard::Key::Right) {
+            focusIdx_ = 1 - focusIdx_;
+            audio_.playUiHover();
+            return;
+        }
+        if (k->code == sf::Keyboard::Key::Enter) {
+            selectGameMode(focusIdx_ == 0 ? StateContext::Mode::Classic : StateContext::Mode::Endless);
+            return;
+        }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x),
-                            static_cast<float>(mm->position.y));
-            for (int i = 0; i < (int)btns_.size(); ++i)
-            {
-                if (btns_[i].consumeClick(mp))
-                {
-                    audio_.playUiClick(); // MOUSE CLICK
-                    focusIdx_ = i;
-                    activateFocused();
+            const sf::Vector2f mouse(static_cast<float>(mm->position.x),
+                                     static_cast<float>(mm->position.y));
+            for (std::size_t i = 0; i < kGameModeButtonBounds.size(); ++i)
+                if (gameModeButtonBounds(i).contains(mouse)) {
+                    focusIdx_ = static_cast<int>(i);
+                    selectGameMode(i == 0 ? StateContext::Mode::Classic : StateContext::Mode::Endless);
                     return;
                 }
-            }
         }
     }
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x),
-                        static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp))
-            {
-                // MOUSE HOVER: Only play if we just crossed into this button
-                if (focusIdx_ != i) {
-                    audio_.playUiHover();
-                }
-                focusIdx_ = i;
+        const sf::Vector2f mouse(static_cast<float>(mm->position.x),
+                                 static_cast<float>(mm->position.y));
+        for (std::size_t i = 0; i < kGameModeButtonBounds.size(); ++i)
+            if (gameModeButtonBounds(i).contains(mouse) && focusIdx_ != static_cast<int>(i)) {
+                focusIdx_ = static_cast<int>(i);
+                audio_.playUiHover();
             }
-        }
     }
+}
+
+void UIManager::selectGameMode(StateContext::Mode mode)
+{
+    audio_.playUiClick();
+    ctx_.mode = mode;
+    ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
+    nameBuffer_.clear();
+    setState(UIState::NameInput);
+}
+
+sf::FloatRect UIManager::gameModeScreenBounds() const
+{
+    const sf::Vector2u size = gameModeBgTex_.getSize();
+    const sf::Vector2u windowSize = win_.getSize();
+    return { { (windowSize.x - static_cast<float>(size.x)) * .5f,
+               (windowSize.y - static_cast<float>(size.y)) * .5f },
+             { static_cast<float>(size.x), static_cast<float>(size.y) } };
+}
+
+sf::FloatRect UIManager::gameModeButtonBounds(std::size_t index) const
+{
+    const sf::FloatRect local = kGameModeButtonBounds.at(index);
+    return { gameModeScreenBounds().position + local.position, local.size };
 }
 
 void UIManager::handleName(const sf::Event& e)
@@ -573,15 +609,7 @@ void UIManager::handleName(const sf::Event& e)
     {
         if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); handleBack(); return; }
         if (k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); if (!nameBuffer_.empty()) nameBuffer_.pop_back(); return; }
-        if (k->code == sf::Keyboard::Key::Enter) {
-            if (isValidName(nameBuffer_)) {
-                audio_.playUiClick();
-                ctx_.pendingName = nameBuffer_;
-                if (ctx_.mode == StateContext::Mode::Classic) setState(UIState::LevelSelect);
-                else setState(UIState::EndlessPlay);
-            }
-            return;
-        }
+        if (k->code == sf::Keyboard::Key::Enter) { confirmName(); return; }
     }
     if (const auto* t = e.getIf<sf::Event::TextEntered>())
     {
@@ -591,6 +619,19 @@ void UIManager::handleName(const sf::Event& e)
             nameBuffer_ += static_cast<char>(t->unicode);
         }
     }
+    if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>();
+        mm && mm->button == sf::Mouse::Button::Left && userNameConfirmBounds().contains(
+            { static_cast<float>(mm->position.x), static_cast<float>(mm->position.y) }))
+        confirmName();
+}
+
+void UIManager::confirmName()
+{
+    if (!isValidName(nameBuffer_)) return;
+    audio_.playUiClick();
+    ctx_.pendingName = nameBuffer_;
+    if (ctx_.mode == StateContext::Mode::Classic) setState(UIState::LevelSelect);
+    else setState(UIState::EndlessPlay);
 }
 
 void UIManager::handleLvlSel(const sf::Event& e)
@@ -615,7 +656,7 @@ void UIManager::handleLvlSel(const sf::Event& e)
             sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
             for (int i = 0; i < CLASSIC_LEVELS; ++i)
             {
-                if (scaledBaseRect(kLevelButtonBounds[i]).contains(mp))
+                if (levelButtonBounds(i).contains(mp))
                 {
                     audio_.playUiClick();
                     focusIdx_ = i;
@@ -631,7 +672,7 @@ void UIManager::handleLvlSel(const sf::Event& e)
         sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
         for (int i = 0; i < CLASSIC_LEVELS; ++i)
         {
-            if (scaledBaseRect(kLevelButtonBounds[i]).contains(mp)) {
+            if (levelButtonBounds(i).contains(mp)) {
                 if (focusIdx_ != i) audio_.playUiHover();
                 focusIdx_ = i;
             }
@@ -643,6 +684,43 @@ void UIManager::startClassicLevel(int level)
 {
     ctx_.level = std::clamp(level, 1, CLASSIC_LEVELS);
     setState(UIState::ClassicPlay);
+}
+
+sf::FloatRect UIManager::levelScreenBounds() const
+{
+    const sf::Vector2u size = levelBgTex_.getSize();
+    const sf::Vector2u windowSize = win_.getSize();
+    return { { (windowSize.x - static_cast<float>(size.x)) * .5f,
+               (windowSize.y - static_cast<float>(size.y)) * .5f },
+             { static_cast<float>(size.x), static_cast<float>(size.y) } };
+}
+
+sf::FloatRect UIManager::userNameScreenBounds() const
+{
+    const sf::Vector2u size = userNameBgTex_.getSize();
+    const sf::Vector2u windowSize = win_.getSize();
+    return { { (windowSize.x - static_cast<float>(size.x)) * .5f,
+               (windowSize.y - static_cast<float>(size.y)) * .5f },
+             { static_cast<float>(size.x), static_cast<float>(size.y) } };
+}
+
+sf::FloatRect UIManager::levelButtonBounds(std::size_t index) const
+{
+    const sf::FloatRect local = kLevelButtonBounds.at(index);
+    const sf::FloatRect screen = levelScreenBounds();
+    return { screen.position + local.position, local.size };
+}
+
+sf::FloatRect UIManager::userNameInputBounds() const
+{
+    const sf::FloatRect screen = userNameScreenBounds();
+    return { screen.position + sf::Vector2f(220.f, 335.f), { 697.f, 82.f } };
+}
+
+sf::FloatRect UIManager::userNameConfirmBounds() const
+{
+    const sf::FloatRect screen = userNameScreenBounds();
+    return { screen.position + sf::Vector2f(420.f, 500.f), { 297.f, 76.f } };
 }
 
 void UIManager::handleSetting(const sf::Event& e)
@@ -1276,6 +1354,7 @@ void UIManager::update(float dt)
                 }
             }
 
+
             // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
@@ -1736,22 +1815,8 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::ModeSelect:
-    {
-        auto y = vstack(260, 2);
-        add(y(0), { BTN_W, BTN_H }, "Classic Mode", Button::Style::Primary, [this] {
-            ctx_.mode = StateContext::Mode::Classic;
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-            nameBuffer_.clear();
-            setState(UIState::NameInput);
-            });
-        add(y(1), { BTN_W, BTN_H }, "Endless Mode", Button::Style::Primary, [this] {
-            ctx_.mode = StateContext::Mode::Endless;
-            ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
-            nameBuffer_.clear();
-            setState(UIState::NameInput);
-            });
+        // GameMode.png uses direct transparent hitboxes instead of Button.
         break;
-    }
 
     case UIState::LevelSelect:
         // The themed Level.png artwork owns appearance. Level cards use
@@ -1866,7 +1931,27 @@ void UIManager::drawBackground()
         const sf::Texture* texture = &bgTex_;
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
-        else if (state_ == UIState::LevelSelect && levelBgAssetLoaded_) texture = &levelBgTex_;
+        if (state_ == UIState::LevelSelect && levelBgAssetLoaded_) {
+            const sf::FloatRect bounds = levelScreenBounds();
+            sf::Sprite image(levelBgTex_);
+            image.setPosition(bounds.position);
+            win_.draw(image);
+            return;
+        }
+        if (state_ == UIState::NameInput && userNameBgAssetLoaded_) {
+            const sf::FloatRect bounds = userNameScreenBounds();
+            sf::Sprite image(userNameBgTex_);
+            image.setPosition(bounds.position);
+            win_.draw(image);
+            return;
+        }
+        if (state_ == UIState::ModeSelect && gameModeBgAssetLoaded_) {
+            const sf::FloatRect bounds = gameModeScreenBounds();
+            sf::Sprite image(gameModeBgTex_);
+            image.setPosition(bounds.position);
+            win_.draw(image);
+            return;
+        }
         else if (state_ == UIState::LoadGame && loadBgTex_.getSize().x != 0) texture = &loadBgTex_;
         else if (state_ == UIState::Ranking) texture = &rankingBgTex_;
 
@@ -2024,7 +2109,17 @@ void UIManager::drawActiveDebugHitboxes()
         shape.setOutlineColor(r.contains(point) ? sf::Color::Green : sf::Color::Red);
         win_.draw(shape);
     };
-    if (state_ == UIState::Graphic) {
+    if (state_ == UIState::ModeSelect) {
+        for (std::size_t i = 0; i < kGameModeButtonBounds.size(); ++i) {
+            const sf::FloatRect bounds = gameModeButtonBounds(i);
+            sf::RectangleShape shape(bounds.size);
+            shape.setPosition(bounds.position);
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineThickness(2.f);
+            shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+            win_.draw(shape);
+        }
+    } else if (state_ == UIState::Graphic) {
         box(kCharacterPanelBounds); box(kCharacterPrevBounds); box(kCharacterNextBounds);
         box(kThemePanelBounds); box(kThemePrevBounds); box(kThemeNextBounds);
         box(kGraphicCharacterOkBounds);
@@ -2033,8 +2128,24 @@ void UIManager::drawActiveDebugHitboxes()
         box(kSfxTrackBounds); box(kSfxDecBounds); box(kSfxIncBounds);
         box(kMusicTrackBounds); box(kMusicDecBounds); box(kMusicIncBounds); box(kSettingOkBounds);
     } else if (state_ == UIState::LevelSelect) {
-        for (const sf::FloatRect& levelBounds : kLevelButtonBounds)
-            box(levelBounds);
+        for (std::size_t i = 0; i < kLevelButtonBounds.size(); ++i) {
+            const sf::FloatRect bounds = levelButtonBounds(i);
+            sf::RectangleShape shape(bounds.size);
+            shape.setPosition(bounds.position);
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineThickness(2.f);
+            shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+            win_.draw(shape);
+        }
+    } else if (state_ == UIState::NameInput) {
+        for (const sf::FloatRect& bounds : { userNameInputBounds(), userNameConfirmBounds() }) {
+            sf::RectangleShape shape(bounds.size);
+            shape.setPosition(bounds.position);
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineThickness(2.f);
+            shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+            win_.draw(shape);
+        }
     }
 
     // Global seasonal BackButton hitbox (all non-gameplay screens that show it).
@@ -2287,29 +2398,42 @@ void UIManager::renderMainMenu()
 
 void UIManager::renderModeSel()
 {
-    drawCenteredText("SELECT MODE", 160, 44, sf::Color::White, true);
-    for (auto& b : btns_) b.draw(win_, font_);
+    // GameMode.png contains all visible labels and illustrations.
 }
 
 void UIManager::renderName()
 {
-    drawCenteredText("ENTER YOUR NAME", 180, 40, sf::Color::White, true);
-    sf::RectangleShape box({ 600, 60 });
-    box.setPosition({ (UI_W - 600) * 0.5f, 280 });
-    box.setFillColor(sf::Color(20, 20, 30, 220));
-    box.setOutlineThickness(-2.f);
-    box.setOutlineColor(sf::Color(180, 200, 240));
+    win_.setView(win_.getDefaultView());
+    const sf::FloatRect input = userNameInputBounds();
+    const sf::FloatRect confirm = userNameConfirmBounds();
+    sf::RectangleShape box(input.size);
+    box.setPosition(input.position);
+    box.setFillColor(sf::Color(28, 82, 156, 185));
+    box.setOutlineThickness(3.f);
+    box.setOutlineColor(sf::Color(225, 248, 255));
     win_.draw(box);
 
-    sf::Text t(font_, nameBuffer_ + "_", 28);
+    sf::Text prompt(font_, "Enter player name", 25);
+    prompt.setFillColor(sf::Color(22, 78, 143));
+    prompt.setPosition({ input.position.x, input.position.y - 42.f });
+    win_.draw(prompt);
+
+    sf::Text t(font_, nameBuffer_ + "_", 32);
     t.setFillColor(sf::Color::White);
-    t.setPosition({ (UI_W - 600) * 0.5f + 16, 292 });
+    t.setPosition({ input.position.x + 20.f, input.position.y + 21.f });
     win_.draw(t);
 
-    drawCenteredText("Enter to confirm  |  Backspace to edit  |  Esc to go back",
-                     400, 18, sf::Color(180, 180, 180));
-    drawCenteredText(std::string("Mode: ") + (ctx_.mode == StateContext::Mode::Classic ? "Classic" : "Endless"),
-                     440, 18, sf::Color(200, 200, 200));
+    // The confirmation control is an invisible hitbox; only its caption is
+    // drawn so it fits the supplied UserName artwork without extra button art.
+    sf::Text confirmText(font_, "CONFIRM", 29);
+    confirmText.setFillColor(sf::Color::White);
+    confirmText.setOutlineColor(sf::Color(30, 95, 170));
+    confirmText.setOutlineThickness(2.f);
+    const sf::FloatRect confirmTextBounds = confirmText.getLocalBounds();
+    confirmText.setPosition({ confirm.position.x + (confirm.size.x - confirmTextBounds.size.x) * .5f - confirmTextBounds.position.x,
+                              confirm.position.y + (confirm.size.y - confirmTextBounds.size.y) * .5f - confirmTextBounds.position.y });
+    win_.draw(confirmText);
+    win_.setView(uiView_);
 }
 
 void UIManager::renderLvlSel()
@@ -2317,27 +2441,24 @@ void UIManager::renderLvlSel()
     // Level.png has already been drawn at physical window resolution. Draw
     // cards and labels in that same coordinate space, then restore uiView_.
     win_.setView(win_.getDefaultView());
-    const sf::Vector2u windowSize = win_.getSize();
-    const float scaleY = windowSize.y / static_cast<float>(WINDOW_H);
-
     for (std::size_t i = 0; i < kLevelButtonBounds.size(); ++i)
     {
-        const sf::FloatRect bounds = scaledBaseRect(kLevelButtonBounds[i]);
+        const sf::FloatRect bounds = levelButtonBounds(i);
         sf::RectangleShape card(bounds.size);
         card.setPosition(bounds.position);
         card.setFillColor(sf::Color(12, 55, 125, 125));
-        card.setOutlineThickness(4.f * scaleY);
+        card.setOutlineThickness(4.f);
         card.setOutlineColor(sf::Color(205, 240, 255));
         win_.draw(card);
 
         sf::Text number(font_, std::to_string(i + 1),
-                        static_cast<unsigned int>(40.f * scaleY));
+                        32);
         number.setFillColor(sf::Color::White);
         number.setOutlineColor(sf::Color(20, 80, 155));
-        number.setOutlineThickness(2.f * scaleY);
+        number.setOutlineThickness(2.f);
         const sf::FloatRect textBounds = number.getLocalBounds();
         number.setPosition({ bounds.position.x + (bounds.size.x - textBounds.size.x) * .5f - textBounds.position.x,
-                             bounds.position.y + bounds.size.y + 14.f * scaleY - textBounds.position.y });
+                             bounds.position.y + bounds.size.y + 12.f - textBounds.position.y });
         win_.draw(number);
     }
     win_.setView(uiView_);
@@ -2637,6 +2758,13 @@ void UIManager::renderPlay()
         win_.draw(pBox);
     }
     // ----------------------------
+
+    // The map is the bottom layer. Cover the otherwise unused right-hand
+    // gameplay area with light gray before drawing the ScoreTable above it.
+    sf::RectangleShape sidebarBackground({ Grid::SIDEBAR_WIDTH, Grid::MAP_HEIGHT });
+    sidebarBackground.setPosition({ Grid::MAP_WIDTH, 0.f });
+    sidebarBackground.setFillColor(sf::Color(211, 211, 211));
+    win_.draw(sidebarBackground);
 
     // ScoreTable is a seasonal, preloaded texture. Stretch it only to the
     // documented gameplay sidebar (600x1080), never reload it per frame.

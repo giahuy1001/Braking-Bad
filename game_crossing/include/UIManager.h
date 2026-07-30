@@ -144,6 +144,18 @@ private:
     sf::FloatRect confirmationNoBounds() const;
     void saveCurrentRun();
     void startClassicLevel(int level);
+    void confirmName();
+    /** Starts the selected game mode and resets its name-input state. */
+    void selectGameMode(StateContext::Mode mode);
+    /** Returns the original, centered GameMode.png bounds in window pixels. */
+    sf::FloatRect gameModeScreenBounds() const;
+    /** Converts an artwork-local mode-card bound to its screen hitbox. */
+    sf::FloatRect gameModeButtonBounds(std::size_t index) const;
+    sf::FloatRect levelScreenBounds() const;
+    sf::FloatRect userNameScreenBounds() const;
+    sf::FloatRect levelButtonBounds(std::size_t index) const;
+    sf::FloatRect userNameInputBounds() const;
+    sf::FloatRect userNameConfirmBounds() const;
 
     // Members
     sf::RenderWindow& win_;
@@ -154,7 +166,8 @@ private:
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
-    sf::Texture levelBgTex_;
+    /// Theme-cached artwork for full-screen, original-size UI panels.
+    sf::Texture levelBgTex_, userNameBgTex_, gameModeBgTex_;
     sf::Font   rankingFont_;
     sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
@@ -164,6 +177,8 @@ private:
     bool       saveAssetLoaded_ = false;
     bool       quitAssetLoaded_ = false;
     bool       levelBgAssetLoaded_ = false;
+    bool       userNameBgAssetLoaded_ = false;
+    bool       gameModeBgAssetLoaded_ = false;
     bool       pauseFrameValid_ = false;
     std::string currentTheme_ = "winter";
     bool       debugUi_ = false;
@@ -180,6 +195,8 @@ private:
     // automatically to the real window size.
     static const std::array<sf::FloatRect, 7> kMainMenuButtonBounds;
     static const std::array<sf::FloatRect, 10> kLevelButtonBounds;
+    /// GameMode.png-local hitboxes: Classic card, then Endless card.
+    static const std::array<sf::FloatRect, 2> kGameModeButtonBounds;
     static const std::array<std::string, 4> kThemeNames;
     static const sf::FloatRect kCharacterPanelBounds, kCharacterPrevBounds, kCharacterNextBounds;
     static const sf::FloatRect kThemePanelBounds, kThemePrevBounds, kThemeNextBounds;

@@ -391,6 +391,8 @@ private:
      * @brief Performs the capture paused frame operation while preserving the current UI state invariants.
      */
     void capturePausedFrame();
+    /** Captures the last gameplay frame once before displaying a result panel. */
+    void captureResultFrame();
     /**
      * @brief Performs the pause overlay bounds operation while preserving the current UI state invariants.
      * @return Result produced by this UI operation.
@@ -527,6 +529,7 @@ private:
     sf::Font   rankingFont_;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Texture pauseFrameTex_;
+    sf::Texture resultFrameTex_;
     ///< Internal storage used to coordinate UI state and rendering.
     MapBackground mapBackground_;
     ///< Internal storage used to coordinate UI state and rendering.
@@ -549,6 +552,7 @@ private:
     bool       loseAssetLoaded_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
     bool       pauseFrameValid_ = false;
+    bool       resultFrameValid_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
     std::string currentTheme_ = "winter";
     ///< Internal storage used to coordinate UI state and rendering.

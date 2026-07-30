@@ -1143,6 +1143,18 @@ void UIManager::capturePausedFrame()
     pauseFrameValid_ = true;
 }
 
+void UIManager::captureResultFrame()
+{
+    const sf::Vector2u windowSize = win_.getSize();
+    if (windowSize.x == 0 || windowSize.y == 0) { resultFrameValid_ = false; return; }
+    if (resultFrameTex_.getSize() != windowSize && !resultFrameTex_.resize(windowSize)) {
+        resultFrameValid_ = false;
+        return;
+    }
+    resultFrameTex_.update(win_);
+    resultFrameValid_ = true;
+}
+
 /**
  * @brief Consumes dialog input before state input to prevent an action from being applied twice.
  */
@@ -1600,13 +1612,19 @@ void UIManager::setState(UIState s)
     if (s == UIState::Pause &&
         (previousState == UIState::ClassicPlay || previousState == UIState::EndlessPlay))
         capturePausedFrame();
+    if (s == UIState::GameOver &&
+        (previousState == UIState::ClassicPlay || previousState == UIState::EndlessPlay)) {
+        captureResultFrame();
+        gameplayStarted_ = false;
+        audio_.pauseVehicleAmbience();
+    }
 
     state_ = s;
     if (s == UIState::Graphic && previousState != UIState::Graphic)
         beginGraphicPreview();
     if (enteringClassic || enteringEndless)
         resetGameplay();
-    if (s == UIState::Pause || previousState == UIState::Pause)
+    if (s == UIState::Pause || s == UIState::GameOver || previousState == UIState::Pause)
         clock_.restart();
     focusIdx_ = 0;
     rebuildButtons();
@@ -2416,14 +2434,16 @@ void UIManager::render()
 {
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
     const bool paused = state_ == UIState::Pause;
-    if (paused)
+    const bool result = state_ == UIState::GameOver;
+    if (paused || result)
     {
-
         win_.setView(win_.getDefaultView());
         win_.clear(sf::Color(21, 25, 31));
-        if (pauseFrameValid_ && pauseFrameTex_.getSize().x != 0) {
-            sf::Sprite frozenFrame(pauseFrameTex_);
-            const sf::Vector2u frameSize = pauseFrameTex_.getSize();
+        const sf::Texture& frozenTexture = paused ? pauseFrameTex_ : resultFrameTex_;
+        const bool frameValid = paused ? pauseFrameValid_ : resultFrameValid_;
+        if (frameValid && frozenTexture.getSize().x != 0) {
+            sf::Sprite frozenFrame(frozenTexture);
+            const sf::Vector2u frameSize = frozenTexture.getSize();
             const sf::Vector2u windowSize = win_.getSize();
             frozenFrame.setScale({ windowSize.x / static_cast<float>(frameSize.x),
                                    windowSize.y / static_cast<float>(frameSize.y) });
@@ -2905,7 +2925,19 @@ void UIManager::renderPlay()
  */
 void UIManager::renderGameOver()
 {
-    // Win.png/Lose.png already contains the complete result presentation.
+    win_.setView(win_.getDefaultView());
+    const sf::Texture& resultTexture = classicWon_ ? winTex_ : loseTex_;
+    const bool resultLoaded = classicWon_ ? winAssetLoaded_ : loseAssetLoaded_;
+    if (resultLoaded && resultTexture.getSize().x != 0 && resultTexture.getSize().y != 0) {
+        const sf::Vector2u windowSize = win_.getSize();
+        sf::RectangleShape dim({ static_cast<float>(windowSize.x), static_cast<float>(windowSize.y) });
+        dim.setFillColor(sf::Color(0, 0, 0, 96));
+        win_.draw(dim);
+        sf::Sprite result(resultTexture);
+        result.setPosition(resultScreenBounds().position);
+        win_.draw(result);
+    }
+    win_.setView(uiView_);
 }
 
 /**

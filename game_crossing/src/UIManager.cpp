@@ -1270,9 +1270,10 @@ sf::FloatRect UIManager::confirmationPopupBounds() const
 sf::FloatRect UIManager::confirmationYesBounds() const
 {
     const sf::FloatRect popup = confirmationPopupBounds();
-    return { { popup.position.x + popup.size.x * .15f, popup.position.y + popup.size.y * .68f },
+    return { { popup.position.x + popup.size.x * .18f, popup.position.y + popup.size.y * .60f },
              { popup.size.x * .30f, popup.size.y * .19f } };
 }
+
 
 /**
  * @brief Performs the confirmation no bounds operation while preserving the current UI state invariants.
@@ -1280,7 +1281,7 @@ sf::FloatRect UIManager::confirmationYesBounds() const
 sf::FloatRect UIManager::confirmationNoBounds() const
 {
     const sf::FloatRect popup = confirmationPopupBounds();
-    return { { popup.position.x + popup.size.x * .55f, popup.position.y + popup.size.y * .68f },
+    return { { popup.position.x + popup.size.x * .55f, popup.position.y + popup.size.y * .60f },
              { popup.size.x * .30f, popup.size.y * .19f } };
 }
 

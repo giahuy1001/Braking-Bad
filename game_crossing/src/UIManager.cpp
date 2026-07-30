@@ -1126,7 +1126,7 @@ void UIManager::update(float dt)
             // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
-                obstacleSpawnTimer_ = 0.6f; // Spawn slightly faster for more traffic
+                obstacleSpawnTimer_ = 1.5f; // Spawn slightly faster for more traffic
 
                 // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
@@ -1155,8 +1155,8 @@ void UIManager::update(float dt)
                                 for (auto obs : Obstacles) {
                                     const sf::FloatRect bounds = obs->getBounds();
                                     const float obstacleCenterY = bounds.position.y + bounds.size.y * 0.5f;
-                                    if (std::abs(obstacleCenterY - laneCenterY) < 1.0f) {
-                                        if (std::abs(obs->getX() - spawnX) < 400.f) {
+                                    if (std::abs(obstacleCenterY - laneCenterY) < 100.0f) {
+                                        if (std::abs(obs->getX() - spawnX) < 500.f) {
                                             isBlocked = true;
                                             break;
                                         }
@@ -1169,10 +1169,10 @@ void UIManager::update(float dt)
                                         // offset by half the actor height to
                                         // put its collision box at lane center.
                                         if (row % 2 == 0) {
-                                            Obstacles.push_back(new CCar(spawnX, laneCenterY - 25.f, dir));
+                                            Obstacles.push_back(new CCar(spawnX, laneCenterY - 30.f, dir));
                                         }
                                         else {
-                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 30.f, dir));
+                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 90.f, dir));
                                         }
                                     }
                                     else if (type == LaneType::Animal) {

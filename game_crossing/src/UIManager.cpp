@@ -2227,8 +2227,8 @@ void UIManager::renderLoad()
         }
     };
 
-    drawColumn(GameMode::Classic, 350.f, 0);
-    drawColumn(GameMode::Endless, 758.f, 3);
+    drawColumn(GameMode::Classic, 357.f, 0);
+    drawColumn(GameMode::Endless, 770.f, 3);
 }
 
 void UIManager::renderRanking()

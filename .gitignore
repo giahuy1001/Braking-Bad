@@ -16,7 +16,7 @@ Release/
 .DS_Store
 
 #save files
-rank_classic.txt
-rank_endless.txt
-saves_classic.txt
-saves_endless.txt
+game_crossing/rank_classic.txt
+game_crossing/rank_endless.txt
+game_crossing/saves_classic.txt
+game_crossing/saves_endless.txt

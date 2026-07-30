@@ -71,10 +71,10 @@ private:
     void render();
 
     /**
-     * @brief Performs the handle boot operation while preserving the current UI state invariants.
+     * @brief Handles input for the startup loading screen.
      * @param Input required by this UI operation.
      */
-    void handleBoot    (const sf::Event& e);
+    void handleLoading (const sf::Event& e);
     /**
      * @brief Performs the handle main menu operation while preserving the current UI state invariants.
      * @param Input required by this UI operation.
@@ -220,9 +220,9 @@ private:
     static bool isValidName(const std::string& s);
 
     /**
-     * @brief Performs the render boot operation while preserving the current UI state invariants.
+     * @brief Draws the loading artwork, blinking prompt, and zoom transition.
      */
-    void renderBoot();
+    void renderLoading();
     /**
      * @brief Performs the render main menu operation while preserving the current UI state invariants.
      */
@@ -517,7 +517,7 @@ private:
     bool       fontLoaded_ = false;
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
     ///< Internal storage used to coordinate UI state and rendering.
-                settingButtonTex_, logoTex_, iconsTex_;
+                settingButtonTex_, logoTex_, iconsTex_, loadingTex_;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
 
@@ -593,7 +593,7 @@ private:
     static const sf::FloatRect kGraphicCharacterOkBounds;
 
     ///< Internal storage used to coordinate UI state and rendering.
-    UIState        state_                = UIState::Boot;
+    UIState        state_                = UIState::Loading;
     ///< Internal storage used to coordinate UI state and rendering.
     UIState        stateBeforeModal_     = UIState::MainMenu;
     ///< Internal storage used to coordinate UI state and rendering.
@@ -614,7 +614,10 @@ private:
     ///< Internal storage used to coordinate UI state and rendering.
     std::string nameBuffer_;
     ///< Internal storage used to coordinate UI state and rendering.
-    float       bootTimer_ = 0.f;
+    sf::View     loadingView_;
+    float        loadingBlinkElapsed_ = 0.f;
+    float        loadingZoomElapsed_ = 0.f;
+    bool         loadingTransitionActive_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Clock   clock_;
 

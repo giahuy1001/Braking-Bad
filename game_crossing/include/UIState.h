@@ -9,8 +9,8 @@
 /** @brief Identifies every mutually exclusive screen managed by UIManager. */
 enum class UIState : unsigned char
 {
-    /** @brief Timed startup screen. */
-    Boot = 0,
+    /** @brief Startup loading screen that waits for player confirmation. */
+    Loading = 0,
     /** @brief Main navigation screen. */
     MainMenu,
     /** @brief Game-mode selection screen. */

@@ -27,7 +27,10 @@ namespace
     constexpr float         UI_SCALE   = 1.5f;
     constexpr float         UI_W       = WINDOW_W / UI_SCALE;
     constexpr float         UI_H       = WINDOW_H / UI_SCALE;
-    constexpr float         BOOT_TIME  = 2.0f;
+    constexpr float         LOADING_BLINK_PERIOD = 1.0f;
+    constexpr float         LOADING_ZOOM_DURATION = 0.4f;
+    constexpr float         LOADING_ZOOM_SCALE = 0.72f;
+    constexpr float         LOADING_PROMPT_HEIGHT = 104.f;
     constexpr float         PADDING    = 24.f;
     constexpr float         BTN_W      = 360.f;
     constexpr float         BTN_H      = 56.f;
@@ -198,7 +201,13 @@ UIManager::UIManager(sf::RenderWindow& window)
     ranks_.loadAll();
     prog_.load();
 
-    setState(UIState::Boot);
+    if (!loadingTex_.loadFromFile("assets/LoadingScreen.png"))
+        (void)loadingTex_.loadFromFile("assets/LoadingScreen.jpg");
+    if (loadingTex_.getSize().x == 0 || loadingTex_.getSize().y == 0)
+        std::cerr << "[UIManager] failed to load assets/LoadingScreen.png\n";
+
+    loadingView_ = win_.getDefaultView();
+    setState(UIState::Loading);
 
     audio_.loadAssets();
 }
@@ -467,7 +476,7 @@ void UIManager::handleEvents()
 
         switch (state_)
         {
-        case UIState::Boot:         handleBoot(*event);     break;
+        case UIState::Loading:      handleLoading(*event);  break;
         case UIState::MainMenu:     handleMainMenu(*event); break;
         case UIState::ModeSelect:   handleModeSel(*event);  break;
         case UIState::NameInput:    handleName(*event);     break;
@@ -509,13 +518,18 @@ void UIManager::handleBack()
 }
 
 /**
- * @brief Performs the handle boot operation while preserving the current UI state invariants.
+ * @brief Handles startup confirmation and starts the loading-screen zoom transition.
  */
-void UIManager::handleBoot(const sf::Event& e)
+void UIManager::handleLoading(const sf::Event& e)
 {
-    if (e.is<sf::Event::KeyPressed>()) {
+    const auto* key = e.getIf<sf::Event::KeyPressed>();
+    const auto* mouse = e.getIf<sf::Event::MouseButtonPressed>();
+    const bool enterPressed = key && key->code == sf::Keyboard::Key::Enter;
+    const bool leftClicked = mouse && mouse->button == sf::Mouse::Button::Left;
+    if (!loadingTransitionActive_ && (enterPressed || leftClicked)) {
         audio_.playUiClick();
-        setState(UIState::MainMenu);
+        loadingTransitionActive_ = true;
+        loadingZoomElapsed_ = 0.f;
     }
 }
 
@@ -1286,10 +1300,22 @@ sf::FloatRect UIManager::confirmationNoBounds() const
  */
 void UIManager::update(float dt)
 {
-    if (state_ == UIState::Boot)
-    {
-        bootTimer_ += dt;
-        if (bootTimer_ >= BOOT_TIME) setState(UIState::MainMenu);
+    if (state_ == UIState::Loading) {
+        if (!loadingTransitionActive_) {
+            loadingBlinkElapsed_ = std::fmod(loadingBlinkElapsed_ + dt, LOADING_BLINK_PERIOD);
+            return;
+        }
+
+        loadingZoomElapsed_ += dt;
+        const float progress = std::min(loadingZoomElapsed_ / LOADING_ZOOM_DURATION, 1.f);
+        const float easedProgress = 1.f - std::pow(1.f - progress, 3.f);
+        loadingView_ = win_.getDefaultView();
+        loadingView_.zoom(1.f + (LOADING_ZOOM_SCALE - 1.f) * easedProgress);
+        if (progress >= 1.f) {
+            win_.setView(win_.getDefaultView());
+            setState(UIState::MainMenu);
+        }
+        return;
     }
 
     if (gameplayStarted_ && state_ == UIState::EndlessPlay && isEndlessPlayerOffscreen())
@@ -2284,7 +2310,7 @@ void UIManager::drawActiveDebugHitboxes()
         }
     }
 
-    if (state_ != UIState::Boot && state_ != UIState::MainMenu && state_ != UIState::Pause && state_ != UIState::GameOver &&
+    if (state_ != UIState::Loading && state_ != UIState::MainMenu && state_ != UIState::Pause && state_ != UIState::GameOver &&
         state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
         box(sf::FloatRect({ 1721.f, 24.f }, { 175.f, 77.f }));
 
@@ -2338,7 +2364,7 @@ void UIManager::drawGameplaySidebarHitboxes()
  */
 void UIManager::drawBackIcon()
 {
-    if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause || state_ == UIState::GameOver ||
+    if (state_ == UIState::Loading || state_ == UIState::MainMenu || state_ == UIState::Pause || state_ == UIState::GameOver ||
         state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay)
         return;
 
@@ -2432,6 +2458,7 @@ void UIManager::drawCenteredText(const std::string& s, float y, unsigned int siz
  */
 void UIManager::render()
 {
+    const bool loading = state_ == UIState::Loading;
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
     const bool paused = state_ == UIState::Pause;
     const bool result = state_ == UIState::GameOver;
@@ -2451,6 +2478,11 @@ void UIManager::render()
         }
         win_.setView(uiView_);
     }
+    else if (loading)
+    {
+        win_.setView(loadingView_);
+        win_.clear(sf::Color::Black);
+    }
     else if (gameplay)
     {
         win_.setView(win_.getDefaultView());
@@ -2466,7 +2498,7 @@ void UIManager::render()
 
     switch (state_)
     {
-    case UIState::Boot:        renderBoot();        break;
+    case UIState::Loading:     renderLoading();     break;
     case UIState::MainMenu:    renderMainMenu();    break;
     case UIState::ModeSelect:  renderModeSel();     break;
     case UIState::NameInput:   renderName();        break;
@@ -2482,7 +2514,7 @@ void UIManager::render()
     case UIState::Pause:       renderPause();       break;
     }
 
-    if (!gameplay) {
+    if (!gameplay && !loading) {
         drawBackIcon();
     }
     if (modal_ != Modal::None)
@@ -2512,21 +2544,36 @@ void UIManager::render()
 }
 
 /**
- * @brief Performs the render boot operation while preserving the current UI state invariants.
+ * @brief Draws the startup artwork and the blinking start prompt.
  */
-void UIManager::renderBoot()
+void UIManager::renderLoading()
 {
-    if (assetsLoaded_)
-    {
-        sf::Sprite logo(logoTex_);
-        logo.setScale({ 0.5f, 0.5f });
-        const auto sz = logoTex_.getSize();
-        logo.setPosition({ (UI_W - sz.x * 0.5f) * 0.5f, 180.f });
-        win_.draw(logo);
+    if (loadingTex_.getSize().x != 0 && loadingTex_.getSize().y != 0) {
+        sf::Sprite background(loadingTex_);
+        const sf::Vector2u size = loadingTex_.getSize();
+        background.setScale({ WINDOW_W / static_cast<float>(size.x),
+                              WINDOW_H / static_cast<float>(size.y) });
+        win_.draw(background);
     }
-    drawCenteredText("BRAKING BAD",  520, 56, colorFromHex(0xB41E1E), true);
-    drawCenteredText("Team: 25C11_OOP", 600, 24, sf::Color::White);
-    drawCenteredText("(c) 2026",        640, 18, sf::Color(180, 180, 180));
+
+    if (loadingTransitionActive_)
+        return;
+
+    const float phase = loadingBlinkElapsed_ / LOADING_BLINK_PERIOD;
+    const float alpha = 48.f + 207.f * (0.5f + 0.5f * std::sin(phase * 2.f * 3.14159265f));
+    const auto opacity = static_cast<std::uint8_t>(std::clamp(alpha, 0.f, 255.f));
+
+    sf::RectangleShape promptBand({ static_cast<float>(WINDOW_W), LOADING_PROMPT_HEIGHT });
+    promptBand.setPosition({ 0.f, static_cast<float>(WINDOW_H) - LOADING_PROMPT_HEIGHT });
+    promptBand.setFillColor(sf::Color(0, 0, 0, opacity));
+    win_.draw(promptBand);
+
+    sf::Text prompt(font_, "Press \"Enter\" or click anywhere to start game", 34);
+    prompt.setFillColor(sf::Color(255, 255, 255, opacity));
+    const sf::FloatRect bounds = prompt.getLocalBounds();
+    prompt.setPosition({ (WINDOW_W - bounds.size.x) * 0.5f - bounds.position.x,
+                         WINDOW_H - LOADING_PROMPT_HEIGHT * 0.5f - (bounds.position.y + bounds.size.y * 0.5f) });
+    win_.draw(prompt);
 }
 
 /**

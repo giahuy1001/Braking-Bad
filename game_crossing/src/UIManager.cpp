@@ -2400,6 +2400,7 @@ void UIManager::renderPlay()
                     // Căn giữa tấm ảnh khiên
                     s.setOrigin({ static_cast<float>(texShieldItem_.getSize().x) / 2.f, static_cast<float>(texShieldItem_.getSize().y) / 2.f });
                     s.setPosition({ Grid::columnCenter(block.shieldCols[row]), Grid::rowCenter(block.startY, row) - cameraY_ });
+                    s.setScale({ 1.5f, 1.5f });
                     win_.draw(s);
                 }
             }
@@ -2412,7 +2413,7 @@ void UIManager::renderPlay()
     // 2. Vẽ HUD Khiên ở góc trái trên cùng (chỉ hiện khi đang cầm)
     if (player_.hasShield()) {
         sf::Sprite hudShield(texShieldItem_);
-        // Chỉnh tọa độ góc trái màn hình gameplay (có thể đổi tỷ lệ scale nếu ảnh quá to)
+        hudShield.setScale({ 1.5f, 1.5f });
         hudShield.setPosition({ 20.f, 20.f });
         win_.draw(hudShield);
     }

@@ -12,3 +12,22 @@ bool CObstacle::isOffScreen() const {
     }
     return false;
 }
+
+void CObstacle::updateAnimation(float dt) {
+    if (!sprite || totalFrames <= 1) return;
+
+    animTimer += dt;
+    if (animTimer >= frameDuration) {
+        animTimer -= frameDuration;
+        currentFrame = (currentFrame + 1) % totalFrames;
+
+        int col = currentFrame % frameCols;
+        int row = currentFrame / frameCols;
+
+        // Cú pháp SFML 3: sf::IntRect({x, y}, {width, height})
+        sprite->setTextureRect(sf::IntRect(
+            { col * frameWidth, row * frameHeight },
+            { frameWidth, frameHeight }
+        ));
+    }
+}

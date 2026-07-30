@@ -1,7 +1,33 @@
-#include "CCar.h"
+﻿#include "CCar.h"
+#include <SFML/Graphics.hpp>
+
+static sf::Texture& getCarTexture(direction dir) {
+    static sf::Texture tRight, tLeft;
+    static bool loaded = false;
+    if (!loaded) {
+        // 1: Trái sang phải (RIGHT), 2: Phải sang trái (LEFT)
+        tRight.loadFromFile("assets/obstacles/Ambulance1.png");
+        tLeft.loadFromFile("assets/obstacles/Ambulance2.png");
+        loaded = true;
+    }
+    return (dir == RIGHT) ? tRight : tLeft;
+}
 
 CCar::CCar(float startX, float startY, direction dir)
     : CVehicle(startX, startY, 80.0f, 50.0f, 450.0f, dir) {
+
+    sf::Texture& tex = getCarTexture(dir);
+    sprite = new sf::Sprite(tex);
+
+    // Cắt sprite sheet (4 cột, 3 hàng = 12 frames)
+    totalFrames = 12;
+    frameCols = 4;
+    frameWidth = static_cast<int>(tex.getSize().x / 4);
+    frameHeight = static_cast<int>(tex.getSize().y / 3);
+
+    sprite->setTextureRect(sf::IntRect({ 0, 0 }, { frameWidth, frameHeight }));
+    sprite->setScale({ width / static_cast<float>(frameWidth), height / static_cast<float>(frameHeight) });
+    frameDuration = 0.05f; // Tốc độ bánh xe lăn
 }
 
 void CCar::move(float dt) {
@@ -18,4 +44,6 @@ void CCar::move(float dt) {
     else {
         x -= currentSpeed * dt;
     }
+
+    updateAnimation(dt);
 }

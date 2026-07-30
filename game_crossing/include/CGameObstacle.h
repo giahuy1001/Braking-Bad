@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CGameObject.h"
 #include "Grid.h"
 
@@ -12,6 +12,16 @@ protected:
     float speed;
     float speedMultiplier = 1.0f;
     direction dir;
+
+    int currentFrame = 0;
+    float animTimer = 0.0f;
+    float frameDuration = 0.1f; // Tốc độ lật frame
+    int totalFrames = 1;
+    int frameCols = 1;
+    int frameWidth = 0;
+    int frameHeight = 0;
+
+    void updateAnimation(float dt);
 public:
     // recall constructor to reinitialize position, size, and speed
     CObstacle(float startX, float startY, float w, float h, float spd, direction dir)

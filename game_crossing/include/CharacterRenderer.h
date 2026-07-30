@@ -1,16 +1,18 @@
-#pragma once
+﻿#pragma once
 
 #include <SFML/Graphics.hpp>
 #include <string>
 
-// Presentation-only character factory. Gameplay stores only the integer ID,
-// so these placeholder shapes can later be replaced by sprites in one place.
+// Quản lý và vẽ Sprite nhân vật từ sprite sheet (3 cột x 4 hàng)
 class CharacterRenderer
 {
 public:
-    static constexpr int kCharacterCount = 6;
+    static constexpr int kCharacterCount = 4; // Cập nhật thành 4 nhân vật
 
+    static void loadAssets();
     static int normalizeID(int id);
     static std::string name(int id);
-    static void draw(sf::RenderTarget& target, int id, sf::Vector2f center, float radius);
+
+    // Thêm directionRow (0: Xuống, 1: Trái, 2: Phải, 3: Lên) và frameCol (0, 1, 2)
+    static void draw(sf::RenderTarget& target, int id, sf::Vector2f center, float radius, int directionRow = 0, int frameCol = 1);
 };

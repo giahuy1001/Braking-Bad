@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CGameObject.h"
 #include "CVehicle.h"
 #include "CAnimal.h"
@@ -26,16 +26,12 @@ public:
     void setMovementBounds(sf::FloatRect bounds);
     void setCameraOffset(float cameraY);
 
-    // Polling entry point for callers that do not have event-level input.
     void handleInput();
-    // Event-level input retains the game's one-grid-cell-per-keypress rule.
     void handleInput(sf::Keyboard::Key key);
     void update(float dt);
 
-    // (Replaced the friends' "render" function to properly match CGameObject)
     void draw(sf::RenderWindow& window, float cameraY) override;
 
-    // COLLISION DETECTION
     bool isImpact(CVehicle* vehicle);
     bool isImpact(CAnimal* animal);
 
@@ -48,7 +44,6 @@ private:
     void moveByGridStep(float dx, float dy);
 
     sf::Vector2f spawnPosition_;
-
     sf::FloatRect movementBounds_;
     float cameraY_ = 0.f;
     float radius_ = 42.f;
@@ -58,4 +53,13 @@ private:
 
     bool hasShield_ = false;
     float invincibleTimer_ = 0.f;
+
+    // --- ANIMATION STATE ---
+    int facingDir_ = 0;
+    int animFrame_ = 1;
+    float animTimer_ = 0.f;
+
+    float targetX_ = 0.f;
+    float targetY_ = 0.f;
+    float moveSpeed_ = 600.f; // Tốc độ trượt (pixel/giây). Chỉnh số này để đi nhanh hay chậm!
 };

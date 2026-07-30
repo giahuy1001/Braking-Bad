@@ -61,5 +61,5 @@ private:
 
     float targetX_ = 0.f;
     float targetY_ = 0.f;
-    float moveSpeed_ = 600.f; // Tốc độ trượt (pixel/giây). Chỉnh số này để đi nhanh hay chậm!
+    float moveSpeed_ = 500.f; // Tốc độ trượt (pixel/giây). Chỉnh số này để đi nhanh hay chậm!
 };

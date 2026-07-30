@@ -40,7 +40,7 @@ namespace
     constexpr float         BACK_Y     = PADDING;
     constexpr int           NAME_MAX   = 16;
     constexpr int           CLASSIC_LEVELS = 10;
-    constexpr float         ENDLESS_SCROLL_SPEED = 180.f; // px/s, world Y decreases
+    constexpr float         ENDLESS_SCROLL_SPEED = 100.f; // px/s, world Y decreases
     constexpr float         ENDLESS_CATCHUP_SPEED = 1500.f;
     constexpr float         CLASSIC_FOLLOW_SPEED = 960.f;  // px/s, catches up to player
     constexpr float         PLAYER_SCREEN_ANCHOR = Grid::MAP_HEIGHT * 0.65f;

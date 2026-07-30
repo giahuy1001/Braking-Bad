@@ -93,8 +93,8 @@ private:
 
     // Define playlist here! Make sure these files exist in folder.
     const std::vector<std::string> bgmPlaylist_ = {
-        "assets/audio/nawhij.wav",                  // Track 0
-        "assets/audio/Relaxed Scene.wav",           // Track 1
-        "assets/audio/Seasons (guitar cover).wav"   // Track 2
+        "assets/audio/Seasons (guitar cover).wav",   // Track 0
+        "assets/audio/Relaxed Scene.wav",            // Track 1
+        "assets/audio/nawhij.wav"                    // Track 2
     };
 };

@@ -2204,7 +2204,7 @@ void UIManager::renderLoad()
             const bool hasSave = !slots[place].name.empty();
             const std::string name = hasSave ? slots[place].name : "---";
             const std::string time = hasSave ? formatSaveTime(slots[place]) : "--";
-            sf::Text entry(rankingFont_, name + "\nTimes: " + time, 20);
+            sf::Text entry(rankingFont_, name + "\nTime: " + time, 20);
             entry.setFillColor(sf::Color::White);
             entry.setPosition({ x, rowY[place] });
             win_.draw(entry);
@@ -2244,7 +2244,7 @@ void UIManager::renderRanking()
             const bool hasRecord = place < static_cast<int>(rows.size());
             const std::string name = hasRecord ? rows[place].name : "---";
             const std::string time = hasRecord ? std::to_string(rows[place].elapsedSec) + "s" : "--";
-            sf::Text entry(rankingFont_, name + "\nTimes: " + time, 22);
+            sf::Text entry(rankingFont_, name + "\nTime: " + time, 22);
             entry.setFillColor(sf::Color::White);
             entry.setPosition({ x, rowY[place] });
             win_.draw(entry);

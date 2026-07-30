@@ -79,6 +79,7 @@ namespace
     }
 }
 
+
 const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
     // Right-side vertical menu: Play, Load, Graphic, Setting.
     sf::FloatRect({ 1416.f, 410.f }, { 314.f, 105.f }),
@@ -89,6 +90,21 @@ const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
     sf::FloatRect({ 1555.f, 980.f }, { 94.f, 94.f }),
     sf::FloatRect({ 1684.f, 980.f }, { 94.f, 94.f }),
     sf::FloatRect({ 1807.f, 980.f }, { 94.f, 94.f })
+};
+
+// Authored 1920x1080 coordinates. The ten square cards sit inside Level.png's
+// dark-blue panel; labels are drawn immediately beneath each card.
+const std::array<sf::FloatRect, 10> UIManager::kLevelButtonBounds = {
+    sf::FloatRect({ 310.f, 300.f }, { 200.f, 200.f }),
+    sf::FloatRect({ 595.f, 300.f }, { 200.f, 200.f }),
+    sf::FloatRect({ 880.f, 300.f }, { 200.f, 200.f }),
+    sf::FloatRect({1165.f, 300.f }, { 200.f, 200.f }),
+    sf::FloatRect({1450.f, 300.f }, { 200.f, 200.f }),
+    sf::FloatRect({ 310.f, 610.f }, { 200.f, 200.f }),
+    sf::FloatRect({ 595.f, 610.f }, { 200.f, 200.f }),
+    sf::FloatRect({ 880.f, 610.f }, { 200.f, 200.f }),
+    sf::FloatRect({1165.f, 610.f }, { 200.f, 200.f }),
+    sf::FloatRect({1450.f, 610.f }, { 200.f, 200.f })
 };
 
 const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
@@ -222,7 +238,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     };
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
-    sf::Texture newScoreTable, newSave, newQuit;
+    sf::Texture newScoreTable, newSave, newQuit, newLevel;
     // Load artwork is supplied as assets/theme/<season>/Load.png.
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
@@ -249,6 +265,11 @@ bool UIManager::setTheme(const std::string& seasonName)
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
+    levelBgAssetLoaded_ = load(newLevel, "Level", false);
+    if (levelBgAssetLoaded_)
+        levelBgTex_ = std::move(newLevel);
+    else
+        std::cerr << "[UIManager] missing Level.png for theme '" << seasonName << "'\n";
     // Gameplay artwork is cached with the rest of the theme.  It is never
     // loaded from renderPlay() or an event handler.
     scoreTableAssetLoaded_ = load(newScoreTable, "ScoreTable", false);
@@ -574,27 +595,31 @@ void UIManager::handleName(const sf::Event& e)
 
 void UIManager::handleLvlSel(const sf::Event& e)
 {
+    auto selectFocusedLevel = [this] {
+        startClassicLevel(focusIdx_ + 1);
+    };
+
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter) { audio_.playUiClick(); activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Left) { audio_.playUiHover(); moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Right) { audio_.playUiHover(); moveFocus(+1); return; }
-        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); moveFocus(-5); return; }
-        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); moveFocus(+5); return; }
+        if (k->code == sf::Keyboard::Key::Enter) { audio_.playUiClick(); selectFocusedLevel(); return; }
+        if (k->code == sf::Keyboard::Key::Left) { audio_.playUiHover(); focusIdx_ = (focusIdx_ + 9) % 10; return; }
+        if (k->code == sf::Keyboard::Key::Right) { audio_.playUiHover(); focusIdx_ = (focusIdx_ + 1) % 10; return; }
+        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); focusIdx_ = (focusIdx_ + 5) % 10; return; }
+        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); focusIdx_ = (focusIdx_ + 5) % 10; return; }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
             sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-            for (int i = 0; i < (int)btns_.size(); ++i)
+            for (int i = 0; i < CLASSIC_LEVELS; ++i)
             {
-                if (btns_[i].consumeClick(mp))
+                if (scaledBaseRect(kLevelButtonBounds[i]).contains(mp))
                 {
                     audio_.playUiClick();
                     focusIdx_ = i;
-                    activateFocused();
+                    startClassicLevel(i + 1);
                     return;
                 }
             }
@@ -604,15 +629,20 @@ void UIManager::handleLvlSel(const sf::Event& e)
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
         sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
+        for (int i = 0; i < CLASSIC_LEVELS; ++i)
         {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) {
+            if (scaledBaseRect(kLevelButtonBounds[i]).contains(mp)) {
                 if (focusIdx_ != i) audio_.playUiHover();
                 focusIdx_ = i;
             }
         }
     }
+}
+
+void UIManager::startClassicLevel(int level)
+{
+    ctx_.level = std::clamp(level, 1, CLASSIC_LEVELS);
+    setState(UIState::ClassicPlay);
 }
 
 void UIManager::handleSetting(const sf::Event& e)
@@ -1295,7 +1325,7 @@ void UIManager::update(float dt)
                                             Obstacles.push_back(new CCar(spawnX, laneCenterY - 30.f, dir));
                                         }
                                         else {
-                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 50.f, dir));
+                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 37.f, dir));
                                         }
                                     }
                                     else if (type == LaneType::Animal) {
@@ -1724,28 +1754,9 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::LevelSelect:
-    {
-        // 2 rows x 5 cols.
-        for (int i = 0; i < CLASSIC_LEVELS; ++i)
-        {
-            const int row = i / 5;
-            const int col = i % 5;
-            const float x = 240.f + col * 160.f;
-            const float y = 240.f + row * 160.f;
-            const int  level = i + 1;
-            const bool unlocked = level <= prog_.highestUnlockedLevel();
-            std::string label = std::to_string(level);
-            if (unlocked) label += "  [done]";
-            add({ x, y }, { 120, 120 }, label, Button::Style::Primary, [this, level] {
-                if (level <= prog_.highestUnlockedLevel())
-                {
-                    ctx_.level = level;
-                    setState(UIState::ClassicPlay);
-                }
-                }, unlocked);
-        }
+        // The themed Level.png artwork owns appearance. Level cards use
+        // dedicated transparent sf::FloatRect hitboxes, not Button widgets.
         break;
-    }
 
     case UIState::Setting:
     {
@@ -1855,6 +1866,7 @@ void UIManager::drawBackground()
         const sf::Texture* texture = &bgTex_;
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
+        else if (state_ == UIState::LevelSelect && levelBgAssetLoaded_) texture = &levelBgTex_;
         else if (state_ == UIState::LoadGame && loadBgTex_.getSize().x != 0) texture = &loadBgTex_;
         else if (state_ == UIState::Ranking) texture = &rankingBgTex_;
 
@@ -2020,6 +2032,9 @@ void UIManager::drawActiveDebugHitboxes()
     } else if (state_ == UIState::Setting) {
         box(kSfxTrackBounds); box(kSfxDecBounds); box(kSfxIncBounds);
         box(kMusicTrackBounds); box(kMusicDecBounds); box(kMusicIncBounds); box(kSettingOkBounds);
+    } else if (state_ == UIState::LevelSelect) {
+        for (const sf::FloatRect& levelBounds : kLevelButtonBounds)
+            box(levelBounds);
     }
 
     // Global seasonal BackButton hitbox (all non-gameplay screens that show it).
@@ -2299,9 +2314,33 @@ void UIManager::renderName()
 
 void UIManager::renderLvlSel()
 {
-    drawCenteredText("SELECT LEVEL", 160, 40, sf::Color::White, true);
-    drawCenteredText("Completed levels show [done]", 200, 18, sf::Color(200, 200, 200));
-    for (auto& b : btns_) b.draw(win_, font_);
+    // Level.png has already been drawn at physical window resolution. Draw
+    // cards and labels in that same coordinate space, then restore uiView_.
+    win_.setView(win_.getDefaultView());
+    const sf::Vector2u windowSize = win_.getSize();
+    const float scaleY = windowSize.y / static_cast<float>(WINDOW_H);
+
+    for (std::size_t i = 0; i < kLevelButtonBounds.size(); ++i)
+    {
+        const sf::FloatRect bounds = scaledBaseRect(kLevelButtonBounds[i]);
+        sf::RectangleShape card(bounds.size);
+        card.setPosition(bounds.position);
+        card.setFillColor(sf::Color(12, 55, 125, 125));
+        card.setOutlineThickness(4.f * scaleY);
+        card.setOutlineColor(sf::Color(205, 240, 255));
+        win_.draw(card);
+
+        sf::Text number(font_, std::to_string(i + 1),
+                        static_cast<unsigned int>(40.f * scaleY));
+        number.setFillColor(sf::Color::White);
+        number.setOutlineColor(sf::Color(20, 80, 155));
+        number.setOutlineThickness(2.f * scaleY);
+        const sf::FloatRect textBounds = number.getLocalBounds();
+        number.setPosition({ bounds.position.x + (bounds.size.x - textBounds.size.x) * .5f - textBounds.position.x,
+                             bounds.position.y + bounds.size.y + 14.f * scaleY - textBounds.position.y });
+        win_.draw(number);
+    }
+    win_.setView(uiView_);
 }
 
 void UIManager::renderSetting()

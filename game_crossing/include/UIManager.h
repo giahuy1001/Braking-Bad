@@ -143,6 +143,7 @@ private:
     sf::FloatRect confirmationYesBounds() const;
     sf::FloatRect confirmationNoBounds() const;
     void saveCurrentRun();
+    void startClassicLevel(int level);
 
     // Members
     sf::RenderWindow& win_;
@@ -153,6 +154,7 @@ private:
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
+    sf::Texture levelBgTex_;
     sf::Font   rankingFont_;
     sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
@@ -161,6 +163,7 @@ private:
     bool       scoreTableAssetLoaded_ = false;
     bool       saveAssetLoaded_ = false;
     bool       quitAssetLoaded_ = false;
+    bool       levelBgAssetLoaded_ = false;
     bool       pauseFrameValid_ = false;
     std::string currentTheme_ = "winter";
     bool       debugUi_ = false;
@@ -176,6 +179,7 @@ private:
     // values after using F3/D debug mode; rendering and collision scale them
     // automatically to the real window size.
     static const std::array<sf::FloatRect, 7> kMainMenuButtonBounds;
+    static const std::array<sf::FloatRect, 10> kLevelButtonBounds;
     static const std::array<std::string, 4> kThemeNames;
     static const sf::FloatRect kCharacterPanelBounds, kCharacterPrevBounds, kCharacterNextBounds;
     static const sf::FloatRect kThemePanelBounds, kThemePrevBounds, kThemeNextBounds;

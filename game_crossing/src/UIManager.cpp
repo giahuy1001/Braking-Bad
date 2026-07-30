@@ -104,6 +104,7 @@ const std::array<sf::FloatRect, 2> UIManager::kGameModeButtonBounds = {
     sf::FloatRect({ 500.f, 485.f }, { 385.f, 425.f }),
     sf::FloatRect({1000.f, 485.f }, { 385.f, 425.f })
 };
+const sf::FloatRect UIManager::kResultHomeButtonBounds({ 420.f, 552.f }, { 310.f, 115.f });
 
 
 const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
@@ -231,7 +232,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     };
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
-    sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode;
+    sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode, newWin, newLose;
 
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
@@ -274,6 +275,18 @@ bool UIManager::setTheme(const std::string& seasonName)
         gameModeBgTex_ = std::move(newGameMode);
     else
         std::cerr << "[UIManager] missing GameMode.png for theme '" << seasonName << "'\n";
+
+    winAssetLoaded_ = load(newWin, "Win", false);
+    if (winAssetLoaded_)
+        winTex_ = std::move(newWin);
+    else
+        std::cerr << "[UIManager] missing Win.png for theme '" << seasonName << "'\n";
+
+    loseAssetLoaded_ = load(newLose, "Lose", false);
+    if (loseAssetLoaded_)
+        loseTex_ = std::move(newLose);
+    else
+        std::cerr << "[UIManager] missing Lose.png for theme '" << seasonName << "'\n";
 
     scoreTableAssetLoaded_ = load(newScoreTable, "ScoreTable", false);
     if (scoreTableAssetLoaded_)
@@ -973,81 +986,46 @@ void UIManager::handlePlay(const sf::Event& e)
  */
 void UIManager::handleGameOver(const sf::Event& e)
 {
-
-    if (const auto* m = e.getIf<sf::Event::MouseButtonPressed>()) {
-        if (m->button == sf::Mouse::Button::Left) {
-            int clicked = menuButtonAt(sf::Vector2i(m->position.x, m->position.y));
-            if (clicked >= 0) {
-                audio_.playUiClick();
-                focusIdx_ = clicked;
-                activateFocused();
-                return;
-            }
-        }
+    if (const auto* mouse = e.getIf<sf::Event::MouseButtonPressed>();
+        mouse && mouse->button == sf::Mouse::Button::Left && resultHomeBounds().contains(
+            { static_cast<float>(mouse->position.x), static_cast<float>(mouse->position.y) })) {
+        returnFromGameOver();
+        return;
     }
-    else if (const auto* k = e.getIf<sf::Event::KeyPressed>()) {
-        if (k->code == sf::Keyboard::Key::Up || k->code == sf::Keyboard::Key::W) {
-            audio_.playUiHover();
-            moveFocus(-1);
-            return;
-        }
-        else if (k->code == sf::Keyboard::Key::Down || k->code == sf::Keyboard::Key::S) {
-            audio_.playUiHover();
-            moveFocus(1);
-            return;
-        }
-        else if (k->code == sf::Keyboard::Key::Enter) {
-            if (!btns_.empty()) {
-                audio_.playUiClick();
-                activateFocused();
-                return;
-            }
-        }
-    }
+    if (const auto* key = e.getIf<sf::Event::KeyPressed>();
+        key && (key->code == sf::Keyboard::Key::Enter || key->code == sf::Keyboard::Key::Escape))
+        returnFromGameOver();
+}
 
-    if (const auto* k = e.getIf<sf::Event::KeyPressed>())
-    {
-        if (k->code == sf::Keyboard::Key::Enter || k->code == sf::Keyboard::Key::R)
-        {
-            audio_.playUiClick();
+sf::FloatRect UIManager::resultScreenBounds() const
+{
+    const sf::Texture& texture = classicWon_ ? winTex_ : loseTex_;
+    const sf::Vector2u size = texture.getSize();
+    const sf::Vector2u windowSize = win_.getSize();
+    return { { (windowSize.x - static_cast<float>(size.x)) * .5f,
+               (windowSize.y - static_cast<float>(size.y)) * .5f },
+             { static_cast<float>(size.x), static_cast<float>(size.y) } };
+}
 
-            if (classicWon_)
-            {
-                RunRecord r;
-                r.name = ctx_.pendingName;
-                r.mode = GameMode::Classic;
-                r.level = ctx_.classicLevel;
-                r.elapsedSec = ctx_.classicSec;
-                r.score = 0;
-                r.savedAtUnix = nowUnix();
-                ranks_.submit(r);
+sf::FloatRect UIManager::resultHomeBounds() const
+{
+    const sf::FloatRect screen = resultScreenBounds();
+    return { screen.position + kResultHomeButtonBounds.position, kResultHomeButtonBounds.size };
+}
 
-                classicWon_ = false;
-                setState(UIState::MainMenu);
-                return;
-            }
-
-            RunRecord r;
-            r.name = ctx_.pendingName;
-            if (ctx_.mode == StateContext::Mode::Classic)
-            {
-                r.mode = GameMode::Classic;
-                r.level = ctx_.classicLevel;
-                r.elapsedSec = ctx_.classicSec;
-                r.score = 0;
-            }
-            else
-            {
-                r.mode = GameMode::Endless;
-                r.level = 0;
-                r.elapsedSec = ctx_.endlessSec;
-                r.score = ctx_.endlessScore;
-            }
-            r.savedAtUnix = nowUnix();
-            ranks_.submit(r);
-            handleBack();
-        }
-    }
+void UIManager::returnFromGameOver()
+{
+    RunRecord record;
+    record.name = ctx_.pendingName;
+    record.mode = ctx_.mode == StateContext::Mode::Classic ? GameMode::Classic : GameMode::Endless;
+    record.level = record.mode == GameMode::Classic ? ctx_.classicLevel : 0;
+    record.elapsedSec = record.mode == GameMode::Classic ? ctx_.classicSec : ctx_.endlessSec;
+    record.score = record.mode == GameMode::Classic ? 0 : ctx_.endlessScore;
+    record.savedAtUnix = nowUnix();
+    ranks_.submit(record);
+    audio_.playUiClick();
+    classicWon_ = false;
+    setState(UIState::MainMenu);
 }
 
 /**
@@ -2032,6 +2010,16 @@ void UIManager::drawBackground()
 {
     if (assetsLoaded_)
     {
+        if (state_ == UIState::GameOver) {
+            const sf::Texture& resultTexture = classicWon_ ? winTex_ : loseTex_;
+            const bool resultLoaded = classicWon_ ? winAssetLoaded_ : loseAssetLoaded_;
+            if (resultLoaded && resultTexture.getSize().x != 0 && resultTexture.getSize().y != 0) {
+                sf::Sprite result(resultTexture);
+                result.setPosition(resultScreenBounds().position);
+                win_.draw(result);
+                return;
+            }
+        }
         const sf::Texture* texture = &bgTex_;
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
@@ -2236,6 +2224,14 @@ void UIManager::drawActiveDebugHitboxes()
             shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
             win_.draw(shape);
         }
+    } else if (state_ == UIState::GameOver) {
+        const sf::FloatRect bounds = resultHomeBounds();
+        sf::RectangleShape shape(bounds.size);
+        shape.setPosition(bounds.position);
+        shape.setFillColor(sf::Color::Transparent);
+        shape.setOutlineThickness(2.f);
+        shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+        win_.draw(shape);
     } else if (state_ == UIState::Graphic) {
         box(kCharacterPanelBounds); box(kCharacterPrevBounds); box(kCharacterNextBounds);
         box(kThemePanelBounds); box(kThemePrevBounds); box(kThemeNextBounds);
@@ -2265,7 +2261,7 @@ void UIManager::drawActiveDebugHitboxes()
         }
     }
 
-    if (state_ != UIState::Boot && state_ != UIState::MainMenu && state_ != UIState::Pause &&
+    if (state_ != UIState::Boot && state_ != UIState::MainMenu && state_ != UIState::Pause && state_ != UIState::GameOver &&
         state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
         box(sf::FloatRect({ 1721.f, 24.f }, { 175.f, 77.f }));
 
@@ -2319,7 +2315,7 @@ void UIManager::drawGameplaySidebarHitboxes()
  */
 void UIManager::drawBackIcon()
 {
-    if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause ||
+    if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause || state_ == UIState::GameOver ||
         state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay)
         return;
 
@@ -2889,21 +2885,7 @@ void UIManager::renderPlay()
  */
 void UIManager::renderGameOver()
 {
-    drawCenteredText(classicWon_ ? "LEVEL COMPLETE" : "GAME OVER", 220, 56,
-                     classicWon_ ? colorFromHex(0x4CAF50) : colorFromHex(0xB41E1E), true);
-    drawCenteredText("Player: " + ctx_.pendingName, 320, 22, sf::Color::White);
-    if (ctx_.mode == StateContext::Mode::Classic)
-    {
-        drawCenteredText("Reached level: " + std::to_string(ctx_.classicLevel), 360, 22, sf::Color::White);
-        drawCenteredText("Time: " + std::to_string(ctx_.classicSec) + "s", 390, 22, sf::Color::White);
-    }
-    else
-    {
-        drawCenteredText("Time:  " + std::to_string(ctx_.endlessSec) + "s", 390, 22, sf::Color::White);
-    }
-    drawCenteredText(classicWon_ ? "Enter to return to level select"
-                                 : "Enter to submit score and return to menu",
-                     460, 20, sf::Color(200, 200, 200));
+    // Win.png/Lose.png already contains the complete result presentation.
 }
 
 /**

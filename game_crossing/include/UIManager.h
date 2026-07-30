@@ -309,6 +309,8 @@ private:
      * @brief Performs the finish endless run operation while preserving the current UI state invariants.
      */
     void finishEndlessRun();
+    /** Stores the completed run once, then returns the result panel to Main Menu. */
+    void returnFromGameOver();
     /**
      * @brief Converts pixels through the UI view so input follows letterboxing and view scaling.
      * @param Input required by this UI operation.
@@ -472,6 +474,10 @@ private:
      * @return Result produced by this UI operation.
      */
     sf::FloatRect gameModeButtonBounds(std::size_t index) const;
+    /** Returns the original-size active Win/Lose panel centered in the window. */
+    sf::FloatRect resultScreenBounds() const;
+    /** Returns the artwork-local HOME button as a physical invisible hitbox. */
+    sf::FloatRect resultHomeBounds() const;
     /**
      * @brief Performs the level screen bounds operation while preserving the current UI state invariants.
      * @return Result produced by this UI operation.
@@ -516,7 +522,7 @@ private:
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
 
     ///< Internal storage used to coordinate UI state and rendering.
-    sf::Texture levelBgTex_, userNameBgTex_, gameModeBgTex_;
+    sf::Texture levelBgTex_, userNameBgTex_, gameModeBgTex_, winTex_, loseTex_;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Font   rankingFont_;
     ///< Internal storage used to coordinate UI state and rendering.
@@ -539,6 +545,8 @@ private:
     bool       userNameBgAssetLoaded_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
     bool       gameModeBgAssetLoaded_ = false;
+    bool       winAssetLoaded_ = false;
+    bool       loseAssetLoaded_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
     bool       pauseFrameValid_ = false;
     ///< Internal storage used to coordinate UI state and rendering.
@@ -567,6 +575,8 @@ private:
 
     ///< Internal storage used to coordinate UI state and rendering.
     static const std::array<sf::FloatRect, 2> kGameModeButtonBounds;
+    /// Original Win.png/Lose.png-local bounds for their shared HOME button.
+    static const sf::FloatRect kResultHomeButtonBounds;
     ///< Internal storage used to coordinate UI state and rendering.
     static const std::array<std::string, 4> kThemeNames;
     ///< Internal storage used to coordinate UI state and rendering.

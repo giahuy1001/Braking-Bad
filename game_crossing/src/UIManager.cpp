@@ -27,8 +27,10 @@ namespace
     constexpr float         UI_SCALE   = 1.5f;
     constexpr float         UI_W       = WINDOW_W / UI_SCALE;
     constexpr float         UI_H       = WINDOW_H / UI_SCALE;
-    constexpr float         LOADING_BLINK_PERIOD = 1.0f;
-    constexpr float         LOADING_ZOOM_DURATION = 0.4f;
+    constexpr float         LOADING_BLINK_PERIOD = 2.0f;
+    constexpr float         LOADING_SCREEN1_HOLD_DURATION = 3.f;
+    constexpr float         LOADING_CROSSFADE_DURATION = 0.9f;
+    constexpr float         LOADING_ZOOM_DURATION = 0.8f;
     constexpr float         LOADING_ZOOM_SCALE = 0.72f;
     constexpr float         LOADING_PROMPT_HEIGHT = 104.f;
     constexpr float         PADDING    = 24.f;
@@ -201,10 +203,10 @@ UIManager::UIManager(sf::RenderWindow& window)
     ranks_.loadAll();
     prog_.load();
 
-    if (!loadingTex_.loadFromFile("assets/LoadingScreen.png"))
-        (void)loadingTex_.loadFromFile("assets/LoadingScreen.jpg");
-    if (loadingTex_.getSize().x == 0 || loadingTex_.getSize().y == 0)
-        std::cerr << "[UIManager] failed to load assets/LoadingScreen.png\n";
+    if (!loadingScreen1Tex_.loadFromFile("assets/LoadingScreen1.png"))
+        std::cerr << "[UIManager] failed to load assets/LoadingScreen1.png\n";
+    if (!loadingScreen2Tex_.loadFromFile("assets/LoadingScreen2.png"))
+        std::cerr << "[UIManager] failed to load assets/LoadingScreen2.png\n";
 
     loadingView_ = win_.getDefaultView();
     setState(UIState::Loading);
@@ -527,6 +529,14 @@ void UIManager::handleLoading(const sf::Event& e)
     const bool enterPressed = key && key->code == sf::Keyboard::Key::Enter;
     const bool leftClicked = mouse && mouse->button == sf::Mouse::Button::Left;
     if (!loadingTransitionActive_ && (enterPressed || leftClicked)) {
+        // Input during the artwork sequence skips directly to the interactive screen.
+        if (loadingPhase_ != LoadingPhase::ShowScreen2Waiting) {
+            loadingPhase_ = LoadingPhase::ShowScreen2Waiting;
+            loadingPhaseElapsed_ = 0.f;
+            loadingBlinkElapsed_ = 0.f;
+            return;
+        }
+
         audio_.playUiClick();
         loadingTransitionActive_ = true;
         loadingZoomElapsed_ = 0.f;
@@ -1301,20 +1311,34 @@ sf::FloatRect UIManager::confirmationNoBounds() const
 void UIManager::update(float dt)
 {
     if (state_ == UIState::Loading) {
-        if (!loadingTransitionActive_) {
-            loadingBlinkElapsed_ = std::fmod(loadingBlinkElapsed_ + dt, LOADING_BLINK_PERIOD);
+        if (loadingTransitionActive_) {
+            loadingZoomElapsed_ += dt;
+            const float progress = std::min(loadingZoomElapsed_ / LOADING_ZOOM_DURATION, 1.f);
+            const float easedProgress = 1.f - std::pow(1.f - progress, 3.f);
+            loadingView_ = win_.getDefaultView();
+            loadingView_.zoom(1.f + (LOADING_ZOOM_SCALE - 1.f) * easedProgress);
+            if (progress >= 1.f) {
+                win_.setView(win_.getDefaultView());
+                setState(UIState::MainMenu);
+            }
             return;
         }
 
-        loadingZoomElapsed_ += dt;
-        const float progress = std::min(loadingZoomElapsed_ / LOADING_ZOOM_DURATION, 1.f);
-        const float easedProgress = 1.f - std::pow(1.f - progress, 3.f);
-        loadingView_ = win_.getDefaultView();
-        loadingView_.zoom(1.f + (LOADING_ZOOM_SCALE - 1.f) * easedProgress);
-        if (progress >= 1.f) {
-            win_.setView(win_.getDefaultView());
-            setState(UIState::MainMenu);
+        loadingPhaseElapsed_ += dt;
+        if (loadingPhase_ == LoadingPhase::ShowScreen1 &&
+            loadingPhaseElapsed_ >= LOADING_SCREEN1_HOLD_DURATION) {
+            loadingPhase_ = LoadingPhase::Fading;
+            loadingPhaseElapsed_ = 0.f;
         }
+        else if (loadingPhase_ == LoadingPhase::Fading &&
+                 loadingPhaseElapsed_ >= LOADING_CROSSFADE_DURATION) {
+            loadingPhase_ = LoadingPhase::ShowScreen2Waiting;
+            loadingPhaseElapsed_ = 0.f;
+            loadingBlinkElapsed_ = 0.f;
+        }
+
+        if (loadingPhase_ == LoadingPhase::ShowScreen2Waiting)
+            loadingBlinkElapsed_ = std::fmod(loadingBlinkElapsed_ + dt, LOADING_BLINK_PERIOD);
         return;
     }
 
@@ -2548,15 +2572,31 @@ void UIManager::render()
  */
 void UIManager::renderLoading()
 {
-    if (loadingTex_.getSize().x != 0 && loadingTex_.getSize().y != 0) {
-        sf::Sprite background(loadingTex_);
-        const sf::Vector2u size = loadingTex_.getSize();
-        background.setScale({ WINDOW_W / static_cast<float>(size.x),
-                              WINDOW_H / static_cast<float>(size.y) });
-        win_.draw(background);
-    }
+    const float fadeProgress = loadingPhase_ == LoadingPhase::Fading
+        ? std::min(loadingPhaseElapsed_ / LOADING_CROSSFADE_DURATION, 1.f)
+        : 0.f;
+    const float screen1Opacity = loadingPhase_ == LoadingPhase::ShowScreen1 ? 1.f
+        : (loadingPhase_ == LoadingPhase::Fading ? 1.f - fadeProgress : 0.f);
+    const float screen2Opacity = loadingPhase_ == LoadingPhase::ShowScreen1 ? 0.f
+        : (loadingPhase_ == LoadingPhase::Fading ? fadeProgress : 1.f);
 
-    if (loadingTransitionActive_)
+    auto drawLoadingImage = [&](const sf::Texture& texture, float opacity) {
+        if (texture.getSize().x == 0 || texture.getSize().y == 0 || opacity <= 0.f)
+            return;
+
+        sf::Sprite image(texture);
+        const sf::Vector2u size = texture.getSize();
+        image.setScale({ WINDOW_W / static_cast<float>(size.x),
+                         WINDOW_H / static_cast<float>(size.y) });
+        image.setColor(sf::Color(255, 255, 255,
+            static_cast<std::uint8_t>(std::clamp(opacity, 0.f, 1.f) * 255.f)));
+        win_.draw(image);
+    };
+
+    drawLoadingImage(loadingScreen1Tex_, screen1Opacity);
+    drawLoadingImage(loadingScreen2Tex_, screen2Opacity);
+
+    if (loadingPhase_ != LoadingPhase::ShowScreen2Waiting || loadingTransitionActive_)
         return;
 
     const float phase = loadingBlinkElapsed_ / LOADING_BLINK_PERIOD;

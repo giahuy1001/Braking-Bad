@@ -1,3 +1,7 @@
+/**
+ * @file UIManager.cpp
+ * @brief Implements UI rendering and interaction behavior.
+ */
 #include "UIManager.h"
 #include "CCar.h"
 #include "CTruck.h"
@@ -16,13 +20,6 @@
 #include <iostream>
 #include <limits>
 
-// ---------------------------------------------------------------------
-//  UIManager implementation.  Owns the entire UI/state machine; the old
-//  GameState.h skeleton is gone.  Gameplay states (ClassicPlay/EndlessPlay/
-//  Pause/GameOver) render placeholder labels so the project still builds
-//  and runs end-to-end — the gameplay team plugs in the real logic later.
-// ---------------------------------------------------------------------
-
 namespace
 {
     constexpr unsigned int  WINDOW_W   = 1920;
@@ -40,13 +37,12 @@ namespace
     constexpr float         BACK_Y     = PADDING;
     constexpr int           NAME_MAX   = 16;
     constexpr int           CLASSIC_LEVELS = 10;
-    constexpr float         ENDLESS_SCROLL_SPEED = 100.f; // px/s, world Y decreases
+    constexpr float         ENDLESS_SCROLL_SPEED = 100.f;
     constexpr float         ENDLESS_CATCHUP_SPEED = 600.f;
-    constexpr float         CLASSIC_FOLLOW_SPEED = 960.f;  // px/s, catches up to player
+    constexpr float         CLASSIC_FOLLOW_SPEED = 960.f;
     constexpr float         PLAYER_SCREEN_ANCHOR = Grid::MAP_HEIGHT * 0.65f;
     constexpr float         PLAYER_TOP_SAFE_LINE = 180.f;
     constexpr float         ENDLESS_CATCHUP_DISTANCE = Grid::CELL_SIZE * 5.f;
-
 
     sf::Color colorFromHex(unsigned int rgb)
     {
@@ -79,21 +75,18 @@ namespace
     }
 }
 
-
 const std::array<sf::FloatRect, 7> UIManager::kMainMenuButtonBounds = {
-    // Right-side vertical menu: Play, Load, Graphic, Setting.
+
     sf::FloatRect({ 1416.f, 410.f }, { 314.f, 105.f }),
     sf::FloatRect({ 1416.f, 534.f }, { 314.f, 105.f }),
     sf::FloatRect({ 1416.f, 656.f }, { 314.f, 105.f }),
     sf::FloatRect({ 1416.f, 781.f }, { 314.f, 105.f }),
-    // Bottom-right round icons: Leaderboard, Help, Exit.
+
     sf::FloatRect({ 1555.f, 980.f }, { 94.f, 94.f }),
     sf::FloatRect({ 1684.f, 980.f }, { 94.f, 94.f }),
     sf::FloatRect({ 1807.f, 980.f }, { 94.f, 94.f })
 };
 
-// Local Level.png coordinates (its original 1137x852 bounds). The image is
-// centered without scaling, so these retain the artwork's exact geometry.
 const std::array<sf::FloatRect, 10> UIManager::kLevelButtonBounds = {
     sf::FloatRect({190.f, 245.f}, {125.f, 125.f}),
     sf::FloatRect({340.f, 245.f}, {125.f, 125.f}),
@@ -129,9 +122,6 @@ const sf::FloatRect UIManager::kSettingOkBounds     ({1504.f, 816.f}, {148.f, 10
 const sf::FloatRect UIManager::kGraphicOkThemeBounds ({1520.f, 801.f}, {155.f, 120.f});
 const sf::FloatRect UIManager::kGraphicCharacterOkBounds ({288.f, 814.f}, {155.f, 120.f});
 
-// Authored-image coordinates (1920x1080) for the six Load save-slot buttons:
-// Classic #1-#3, then Endless #1-#3.  Text positions intentionally remain
-// independent in renderLoad(), so these can be adjusted without moving text.
 const std::array<sf::FloatRect, 6> kLoadSlotClickBounds = {
     sf::FloatRect({ 381.f, 416.f }, { 137.f, 115.f }),
     sf::FloatRect({ 381.f, 606.f }, { 137.f, 115.f }),
@@ -141,16 +131,13 @@ const std::array<sf::FloatRect, 6> kLoadSlotClickBounds = {
     sf::FloatRect({1004.f, 800.f }, { 137.f, 115.f })
 };
 
-
-//Constructor
 UIManager::UIManager(sf::RenderWindow& window)
     : win_(window),
     uiView_({ UI_W * 0.5f, UI_H * 0.5f }, { UI_W, UI_H }),
     debugText_(font_, "", 18),
-    trafficLightSprite_(texTrafficGreen_) 
+    trafficLightSprite_(texTrafficGreen_)
 {
-    // Use a project font first, then Windows fonts. This keeps debug text
-    // visible even when the game is launched outside the IDE's working dir.
+
     const std::array<std::string, 5> fontCandidates = {
         "assets/fonts/arial.ttf",
         "assets/font/arial.ttf",
@@ -179,7 +166,7 @@ UIManager::UIManager(sf::RenderWindow& window)
 
     const bool lg  = logoTex_.loadFromFile("../Graphic/1x/DataList.png");
     (void)        iconsTex_.loadFromFile("../Graphic/1x/DataList.png");
-    (void)lg; // The seasonal backgrounds are the only required UI images.
+    (void)lg;
 
     bool tGreen = texTrafficGreen_.loadFromFile("assets/props/traffic_green.png");
     bool tYellow = texTrafficYellow_.loadFromFile("assets/props/traffic_yellow.png");
@@ -189,11 +176,10 @@ UIManager::UIManager(sf::RenderWindow& window)
     bool tShield = texShieldItem_.loadFromFile("assets/props/shield.png");
 
     trafficLightSprite_.setTexture(texTrafficGreen_, true);
-    // Đặt tâm (origin) vào chính giữa bức ảnh
+
     sf::FloatRect bounds = trafficLightSprite_.getLocalBounds();
     trafficLightSprite_.setOrigin({ bounds.size.x / 2.f, 0.f });
 
-    // Cột 6 (index 5) và Hàng 9 đếm từ dưới lên (tâm của ô trên cùng)
     trafficLightSprite_.setPosition({ Grid::columnCenter(5), 0.f });
 
     cfg_ = sets_.load();
@@ -212,21 +198,22 @@ UIManager::UIManager(sf::RenderWindow& window)
 
     setState(UIState::Boot);
 
-    // AudioManager tu load va phan loai asset. applyAudioVolumes() da gui
-    // volume trong Settings vao manager truoc do, nen manager se ap dung no
-    // ngay sau khi cac asset duoc nap.
     audio_.loadAssets();
 }
 
+/**
+ * @brief Releases transient resources after UI activity has ended.
+ */
 UIManager::~UIManager() = default;
 
+/**
+ * @brief Loads a complete seasonal asset set atomically so a failed asset never leaves a mixed theme on screen.
+ */
 bool UIManager::setTheme(const std::string& seasonName)
 {
     if (std::find(kThemeNames.begin(), kThemeNames.end(), seasonName) == kThemeNames.end())
         return false;
 
-    // Asset folders in this project currently start with a capital letter,
-    // while the public API accepts the documented lowercase names. Try both.
     std::string folder = seasonName;
     folder[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(folder[0])));
 
@@ -244,12 +231,12 @@ bool UIManager::setTheme(const std::string& seasonName)
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
     sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode;
-    // Load artwork is supplied as assets/theme/<season>/Load.png.
+
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
         std::cerr << "[UIManager] optional Load.png is missing for theme '"
                   << seasonName << "'; using the normal seasonal background.\n";
-    // Ranking artwork is supplied as assets/theme/<season>/Ranking.png.
+
     const bool rankingLoaded = load(newRanking, "Ranking", false);
     if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
         !load(newGraphic, "Graphic", false) || !rankingLoaded ||
@@ -264,8 +251,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     bgTex_ = std::move(newMain);
     settingBgTex_ = std::move(newSetting);
     graphicBgTex_ = std::move(newGraphic);
-    // Clear a previous season's Load texture when the newly selected season
-    // has not supplied one, so stale artwork is never shown.
+
     loadBgTex_ = std::move(newLoad);
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
@@ -287,8 +273,7 @@ bool UIManager::setTheme(const std::string& seasonName)
         gameModeBgTex_ = std::move(newGameMode);
     else
         std::cerr << "[UIManager] missing GameMode.png for theme '" << seasonName << "'\n";
-    // Gameplay artwork is cached with the rest of the theme.  It is never
-    // loaded from renderPlay() or an event handler.
+
     scoreTableAssetLoaded_ = load(newScoreTable, "ScoreTable", false);
     if (scoreTableAssetLoaded_)
         scoreTableTex_ = std::move(newScoreTable);
@@ -322,6 +307,9 @@ bool UIManager::setTheme(const std::string& seasonName)
     return true;
 }
 
+/**
+ * @brief Performs the load graphic preview theme icon operation while preserving the current UI state invariants.
+ */
 bool UIManager::loadGraphicPreviewThemeIcon()
 {
     const std::string& season = kThemeNames.at(previewThemeIndex_);
@@ -339,6 +327,9 @@ bool UIManager::loadGraphicPreviewThemeIcon()
     return false;
 }
 
+/**
+ * @brief Performs the begin graphic preview operation while preserving the current UI state invariants.
+ */
 void UIManager::beginGraphicPreview()
 {
     previewThemeIndex_ = currentThemeIndex_;
@@ -346,6 +337,9 @@ void UIManager::beginGraphicPreview()
     loadGraphicPreviewThemeIcon();
 }
 
+/**
+ * @brief Performs the commit graphic preview operation while preserving the current UI state invariants.
+ */
 bool UIManager::commitGraphicPreview()
 {
     const bool themeApplied = commitPreviewTheme();
@@ -353,10 +347,12 @@ bool UIManager::commitGraphicPreview()
     return themeApplied;
 }
 
+/**
+ * @brief Performs the commit preview theme operation while preserving the current UI state invariants.
+ */
 bool UIManager::commitPreviewTheme()
 {
-    // setTheme is transactional: if any required seasonal UI asset fails,
-    // preserve both the active theme and the persisted cosmetic selection.
+
     if (!setTheme(kThemeNames.at(previewThemeIndex_)))
         return false;
 
@@ -365,6 +361,9 @@ bool UIManager::commitPreviewTheme()
     return true;
 }
 
+/**
+ * @brief Performs the commit preview character operation while preserving the current UI state invariants.
+ */
 void UIManager::commitPreviewCharacter()
 {
     cfg_.cosmetic.characterId = previewCharacterId_;
@@ -372,9 +371,9 @@ void UIManager::commitPreviewCharacter()
     sets_.save(cfg_);
 }
 
-// ---------------------------------------------------------------------
-//  Public run loop
-// ---------------------------------------------------------------------
+/**
+ * @brief Executes one complete UI lifecycle until the application closes.
+ */
 void UIManager::run()
 {
     while (win_.isOpen())
@@ -385,9 +384,9 @@ void UIManager::run()
     }
 }
 
-// ---------------------------------------------------------------------
-//  Event handling
-// ---------------------------------------------------------------------
+/**
+ * @brief Routes queued input to exactly one state handler so modal input cannot leak into the underlying screen.
+ */
 void UIManager::handleEvents()
 {
     while (const std::optional<sf::Event> event = win_.pollEvent())
@@ -409,15 +408,12 @@ void UIManager::handleEvents()
                 continue;
             }
 
-            // Switch bgms using "N" key
             if (key->code == sf::Keyboard::Key::F9) {
                 audio_.playUiClick();
-                audio_.cycleBgm(1); // Skips to the next track instantly
+                audio_.cycleBgm(1);
                 return;
             }
 
-            // Khi mixer dang mo, cac phim dieu khien no khong duoc roi xuong
-            // gameplay (vi du Up/Down se khong lam Player di chuyen).
             if (debugAudioMixer_ && handleDebugAudioMixerKey(*key))
                 continue;
 
@@ -429,8 +425,6 @@ void UIManager::handleEvents()
             }
         }
 
-        // Debug clicks are intentionally consumed: measuring a coordinate must
-        // not accidentally start a game or close the application.
         if (debugUi_)
         {
             if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>();
@@ -445,8 +439,8 @@ void UIManager::handleEvents()
             }
         }
 
-        // Modal always wins while it is up.
-        if (modal_ != Modal::None)
+        // Modals are rendered last because they must intercept attention and input from the underlying screen.
+    if (modal_ != Modal::None)
         {
             handleModal(*event);
             continue;
@@ -472,6 +466,9 @@ void UIManager::handleEvents()
     }
 }
 
+/**
+ * @brief Performs the handle back operation while preserving the current UI state invariants.
+ */
 void UIManager::handleBack()
 {
     switch (state_)
@@ -492,9 +489,9 @@ void UIManager::handleBack()
     }
 }
 
-// ---------------------------------------------------------------------
-//  Per-state event handlers
-// ---------------------------------------------------------------------
+/**
+ * @brief Performs the handle boot operation while preserving the current UI state invariants.
+ */
 void UIManager::handleBoot(const sf::Event& e)
 {
     if (e.is<sf::Event::KeyPressed>()) {
@@ -503,6 +500,9 @@ void UIManager::handleBoot(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle main menu operation while preserving the current UI state invariants.
+ */
 void UIManager::handleMainMenu(const sf::Event& e)
 {
     if (const auto* key = e.getIf<sf::Event::KeyPressed>())
@@ -519,7 +519,7 @@ void UIManager::handleMainMenu(const sf::Event& e)
             const int button = menuButtonAt(mm->position);
             if (button >= 0)
             {
-                audio_.playUiClick(); // MOUSE CLICK
+                audio_.playUiClick();
                 activateMainMenuButton(static_cast<std::size_t>(button));
             }
         }
@@ -529,7 +529,6 @@ void UIManager::handleMainMenu(const sf::Event& e)
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
         const int button = menuButtonAt(mm->position);
 
-        // MOUSE HOVER: Only play if we entered a NEW valid button!
         if (button >= 0 && button != focusIdx_) {
             audio_.playUiHover();
             focusIdx_ = button;
@@ -537,6 +536,9 @@ void UIManager::handleMainMenu(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle mode sel operation while preserving the current UI state invariants.
+ */
 void UIManager::handleModeSel(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -579,6 +581,9 @@ void UIManager::handleModeSel(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the select game mode operation while preserving the current UI state invariants.
+ */
 void UIManager::selectGameMode(StateContext::Mode mode)
 {
     audio_.playUiClick();
@@ -588,6 +593,9 @@ void UIManager::selectGameMode(StateContext::Mode mode)
     setState(UIState::NameInput);
 }
 
+/**
+ * @brief Performs the game mode screen bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::gameModeScreenBounds() const
 {
     const sf::Vector2u size = gameModeBgTex_.getSize();
@@ -597,12 +605,18 @@ sf::FloatRect UIManager::gameModeScreenBounds() const
              { static_cast<float>(size.x), static_cast<float>(size.y) } };
 }
 
+/**
+ * @brief Performs the game mode button bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::gameModeButtonBounds(std::size_t index) const
 {
     const sf::FloatRect local = kGameModeButtonBounds.at(index);
     return { gameModeScreenBounds().position + local.position, local.size };
 }
 
+/**
+ * @brief Performs the handle name operation while preserving the current UI state invariants.
+ */
 void UIManager::handleName(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -615,7 +629,7 @@ void UIManager::handleName(const sf::Event& e)
     {
         if (isValidNameChar(static_cast<std::uint32_t>(t->unicode)) && (int)nameBuffer_.size() < NAME_MAX)
         {
-            audio_.playUiClick(); // Optional: Typewriter click effect
+            audio_.playUiClick();
             nameBuffer_ += static_cast<char>(t->unicode);
         }
     }
@@ -625,6 +639,9 @@ void UIManager::handleName(const sf::Event& e)
         confirmName();
 }
 
+/**
+ * @brief Performs the confirm name operation while preserving the current UI state invariants.
+ */
 void UIManager::confirmName()
 {
     if (!isValidName(nameBuffer_)) return;
@@ -634,6 +651,9 @@ void UIManager::confirmName()
     else setState(UIState::EndlessPlay);
 }
 
+/**
+ * @brief Performs the handle lvl sel operation while preserving the current UI state invariants.
+ */
 void UIManager::handleLvlSel(const sf::Event& e)
 {
     auto selectFocusedLevel = [this] {
@@ -680,12 +700,18 @@ void UIManager::handleLvlSel(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the start classic level operation while preserving the current UI state invariants.
+ */
 void UIManager::startClassicLevel(int level)
 {
     ctx_.level = std::clamp(level, 1, CLASSIC_LEVELS);
     setState(UIState::ClassicPlay);
 }
 
+/**
+ * @brief Performs the level screen bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::levelScreenBounds() const
 {
     const sf::Vector2u size = levelBgTex_.getSize();
@@ -695,6 +721,9 @@ sf::FloatRect UIManager::levelScreenBounds() const
              { static_cast<float>(size.x), static_cast<float>(size.y) } };
 }
 
+/**
+ * @brief Performs the user name screen bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::userNameScreenBounds() const
 {
     const sf::Vector2u size = userNameBgTex_.getSize();
@@ -704,6 +733,9 @@ sf::FloatRect UIManager::userNameScreenBounds() const
              { static_cast<float>(size.x), static_cast<float>(size.y) } };
 }
 
+/**
+ * @brief Performs the level button bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::levelButtonBounds(std::size_t index) const
 {
     const sf::FloatRect local = kLevelButtonBounds.at(index);
@@ -711,18 +743,27 @@ sf::FloatRect UIManager::levelButtonBounds(std::size_t index) const
     return { screen.position + local.position, local.size };
 }
 
+/**
+ * @brief Performs the user name input bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::userNameInputBounds() const
 {
     const sf::FloatRect screen = userNameScreenBounds();
     return { screen.position + sf::Vector2f(220.f, 335.f), { 697.f, 82.f } };
 }
 
+/**
+ * @brief Performs the user name confirm bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::userNameConfirmBounds() const
 {
     const sf::FloatRect screen = userNameScreenBounds();
     return { screen.position + sf::Vector2f(420.f, 500.f), { 297.f, 76.f } };
 }
 
+/**
+ * @brief Performs the handle setting operation while preserving the current UI state invariants.
+ */
 void UIManager::handleSetting(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -745,7 +786,7 @@ void UIManager::handleSetting(const sf::Event& e)
             if (scaledBaseRect(kMusicTrackBounds).contains(p)) { draggingMusic_ = true; setMusicVolumeFromMouse(mm->position); return; }
         }
     }
-    //MouseMoved logic
+
     if (e.is<sf::Event::MouseMoved>())
     {
         const auto* mm = e.getIf<sf::Event::MouseMoved>();
@@ -755,6 +796,9 @@ void UIManager::handleSetting(const sf::Event& e)
     if (e.is<sf::Event::MouseButtonReleased>()) { draggingSfx_ = draggingMusic_ = false; }
 }
 
+/**
+ * @brief Performs the handle graphic operation while preserving the current UI state invariants.
+ */
 void UIManager::handleGraphic(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -788,6 +832,9 @@ void UIManager::handleGraphic(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle load operation while preserving the current UI state invariants.
+ */
 void UIManager::handleLoad(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -827,6 +874,9 @@ void UIManager::handleLoad(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle ranking operation while preserving the current UI state invariants.
+ */
 void UIManager::handleRanking(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -835,6 +885,9 @@ void UIManager::handleRanking(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle help operation while preserving the current UI state invariants.
+ */
 void UIManager::handleHelp(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -846,6 +899,9 @@ void UIManager::handleHelp(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle play operation while preserving the current UI state invariants.
+ */
 void UIManager::handlePlay(const sf::Event& e)
 {
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>();
@@ -886,15 +942,12 @@ void UIManager::handlePlay(const sf::Event& e)
             k->code == sf::Keyboard::Key::S;
         if (!isMove) return;
 
-        // Once the player is fully below the viewport, ignore every movement
-        // key. This prevents clamping an off-screen Y back onto a visible row.
         if (state_ == UIState::EndlessPlay && isEndlessPlayerOffscreen())
         {
             finishEndlessRun();
             return;
         }
 
-        // The first directional input starts both clock and camera.
         gameplayStarted_ = true;
 
         const float topLimit = state_ == UIState::ClassicPlay
@@ -903,12 +956,10 @@ void UIManager::handlePlay(const sf::Event& e)
         const float mapBottom = state_ == UIState::ClassicPlay
             ? classicMap_.bottomLimit() - Grid::CELL_SIZE * 0.5f
             : -Grid::CELL_SIZE * 0.5f;
-        // maxWalkablePlayerY() only returns a row that is 100% visible. It
-        // therefore prevents stepping into a partially clipped bottom tile.
+
         const float minY = topLimit;
         const float maxY = std::min(mapBottom, maxWalkablePlayerY());
-        // CPlayer owns grid stepping, horizontal clamping, and rejection of
-        // invalid vertical moves. Its bounds retain the exact map/view math.
+
         player_.setMovementBounds({ { Grid::playableLeftCenter(), minY },
                                     { Grid::playableRightCenter() - Grid::playableLeftCenter(),
                                       maxY - minY } });
@@ -916,9 +967,12 @@ void UIManager::handlePlay(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle game over operation while preserving the current UI state invariants.
+ */
 void UIManager::handleGameOver(const sf::Event& e)
 {
-    // 1. ADD STANDARD UI BUTTON INTERACTION
+
     if (const auto* m = e.getIf<sf::Event::MouseButtonPressed>()) {
         if (m->button == sf::Mouse::Button::Left) {
             int clicked = menuButtonAt(sf::Vector2i(m->position.x, m->position.y));
@@ -950,12 +1004,11 @@ void UIManager::handleGameOver(const sf::Event& e)
         }
     }
 
-    // 2. YOUR ORIGINAL FALLBACK RANKING LOGIC
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Enter || k->code == sf::Keyboard::Key::R)
         {
-            audio_.playUiClick(); // Click sound on save/restart
+            audio_.playUiClick();
 
             if (classicWon_)
             {
@@ -996,6 +1049,9 @@ void UIManager::handleGameOver(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the handle pause operation while preserving the current UI state invariants.
+ */
 void UIManager::handlePause(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -1031,12 +1087,18 @@ void UIManager::handlePause(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the save paused run and exit operation while preserving the current UI state invariants.
+ */
 void UIManager::savePausedRunAndExit()
 {
     saveCurrentRun();
     setState(UIState::MainMenu);
 }
 
+/**
+ * @brief Performs the save current run operation while preserving the current UI state invariants.
+ */
 void UIManager::saveCurrentRun()
 {
     RunRecord record;
@@ -1052,28 +1114,39 @@ void UIManager::saveCurrentRun()
     saves_.push(record);
 }
 
+/**
+ * @brief Performs the pause overlay bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::pauseOverlayBounds() const
 {
-    constexpr sf::Vector2f overlaySize(1200.f, 870.f); // 40:29, fixed render size.
+    constexpr sf::Vector2f overlaySize(1200.f, 870.f);
     const sf::Vector2u windowSize = win_.getSize();
     const sf::Vector2f windowSizeF(static_cast<float>(windowSize.x), static_cast<float>(windowSize.y));
     return { { (windowSizeF.x - overlaySize.x) * .5f, (windowSizeF.y - overlaySize.y) * .5f }, overlaySize };
 }
 
+/**
+ * @brief Performs the pause resume bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::pauseResumeBounds() const
 {
     const sf::FloatRect overlay = pauseOverlayBounds();
-    // Button artwork is embedded in Pause.png; this transparent rectangle is
-    // only the interaction region (and is drawn by F7 debug mode).
+
     return { { overlay.position.x + 372.f, overlay.position.y + 307.f }, { 477.f, 205.f } };
 }
 
+/**
+ * @brief Performs the pause out bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::pauseOutBounds() const
 {
     const sf::FloatRect overlay = pauseOverlayBounds();
     return { { overlay.position.x + 372.f, overlay.position.y + 560.f }, { 477.f, 205.f } };
 }
 
+/**
+ * @brief Performs the capture paused frame operation while preserving the current UI state invariants.
+ */
 void UIManager::capturePausedFrame()
 {
     const sf::Vector2u windowSize = win_.getSize();
@@ -1082,10 +1155,13 @@ void UIManager::capturePausedFrame()
         pauseFrameValid_ = false;
         return;
     }
-    pauseFrameTex_.update(win_); // GPU copy of the last displayed gameplay frame; no disk I/O.
+    pauseFrameTex_.update(win_);
     pauseFrameValid_ = true;
 }
 
+/**
+ * @brief Consumes dialog input before state input to prevent an action from being applied twice.
+ */
 void UIManager::handleModal(const sf::Event& e)
 {
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
@@ -1139,9 +1215,12 @@ void UIManager::handleModal(const sf::Event& e)
     }
 }
 
+/**
+ * @brief Performs the sidebar pause bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::sidebarPauseBounds() const
 {
-    // ScoreTable.png is authored at 551x1012 and fills the 600x1080 sidebar.
+
     constexpr float textureWidth = 551.f;
     constexpr float textureHeight = 1012.f;
     const float sx = Grid::SIDEBAR_WIDTH / textureWidth;
@@ -1149,6 +1228,9 @@ sf::FloatRect UIManager::sidebarPauseBounds() const
     return { { Grid::MAP_WIDTH + 132.f * sx, 559.f * sy }, { 317.f * sx, 128.f * sy } };
 }
 
+/**
+ * @brief Performs the sidebar save bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::sidebarSaveBounds() const
 {
     constexpr float textureWidth = 551.f;
@@ -1158,6 +1240,9 @@ sf::FloatRect UIManager::sidebarSaveBounds() const
     return { { Grid::MAP_WIDTH + 132.f * sx, 720.f * sy }, { 317.f * sx, 128.f * sy } };
 }
 
+/**
+ * @brief Performs the sidebar quit bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::sidebarQuitBounds() const
 {
     constexpr float textureWidth = 551.f;
@@ -1167,16 +1252,21 @@ sf::FloatRect UIManager::sidebarQuitBounds() const
     return { { Grid::MAP_WIDTH + 132.f * sx, 884.f * sy }, { 317.f * sx, 128.f * sy } };
 }
 
+/**
+ * @brief Performs the confirmation popup bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::confirmationPopupBounds() const
 {
-    // Keep the complete themed prompt visible on every normal game window.
-    // Yes/No bounds below are normalized to this rectangle for either image.
+
     const sf::Vector2u windowSize = win_.getSize();
     const float width = std::min(720.f, static_cast<float>(windowSize.x) * .72f);
     const float height = std::min(500.f, static_cast<float>(windowSize.y) * .72f);
     return { { (windowSize.x - width) * .5f, (windowSize.y - height) * .5f }, { width, height } };
 }
 
+/**
+ * @brief Performs the confirmation yes bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::confirmationYesBounds() const
 {
     const sf::FloatRect popup = confirmationPopupBounds();
@@ -1184,6 +1274,9 @@ sf::FloatRect UIManager::confirmationYesBounds() const
              { popup.size.x * .30f, popup.size.y * .19f } };
 }
 
+/**
+ * @brief Performs the confirmation no bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::confirmationNoBounds() const
 {
     const sf::FloatRect popup = confirmationPopupBounds();
@@ -1191,9 +1284,9 @@ sf::FloatRect UIManager::confirmationNoBounds() const
              { popup.size.x * .30f, popup.size.y * .19f } };
 }
 
-// ---------------------------------------------------------------------
-//  Per-frame update
-// ---------------------------------------------------------------------
+/**
+ * @brief Advances state that depends on elapsed time after input has established the current intent.
+ */
 void UIManager::update(float dt)
 {
     if (state_ == UIState::Boot)
@@ -1202,8 +1295,6 @@ void UIManager::update(float dt)
         if (bootTimer_ >= BOOT_TIME) setState(UIState::MainMenu);
     }
 
-    // Resolve an already off-screen Endless player before advancing gameplay.
-    // Event input is also guarded in handlePlay(), covering this frame's keys.
     if (gameplayStarted_ && state_ == UIState::EndlessPlay && isEndlessPlayerOffscreen())
     {
         finishEndlessRun();
@@ -1212,7 +1303,7 @@ void UIManager::update(float dt)
 
     if (gameplayStarted_ && (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay))
     {
-        // 1. Play or Resume traffic if actively playing
+
         if (!audio_.vehicleAmbiencePlaying()) {
             audio_.startVehicleAmbience();
         }
@@ -1220,14 +1311,10 @@ void UIManager::update(float dt)
         elapsedPlaySec_ += dt;
         updateCamera(dt);
         player_.setCameraOffset(cameraY_);
-        player_.update(dt); // CẬP NHẬT HOẠT ẢNH TRƯỢT CỦA PLAYER TẠI ĐÂY
+        player_.update(dt);
 
-        // =========================================================================
-        // KIỂM TRA THẮNG / SỤP CỐNG NGAY LẬP TỨC (Không cần đợi bấm phím)
-        // =========================================================================
         const sf::Vector2f playerPos = player_.getPosition();
 
-        // Kiểm tra Win Classic
         if (state_ == UIState::ClassicPlay &&
             playerPos.y <= classicMap_.topLimit() + Grid::CELL_SIZE * 0.5f)
         {
@@ -1237,10 +1324,9 @@ void UIManager::update(float dt)
             prog_.setHighestUnlockedLevel(std::max(prog_.highestUnlockedLevel(),
                 std::min(CLASSIC_LEVELS, ctx_.level + 1)));
             setState(UIState::GameOver);
-            return; // Đã thắng thì ngừng tính toán thêm
+            return;
         }
 
-        // Kiểm tra Sụp cống
         const int playerCol = static_cast<int>(std::floor((playerPos.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
         bool steppedOnManhole = false;
 
@@ -1262,26 +1348,27 @@ void UIManager::update(float dt)
         else if (state_ == UIState::EndlessPlay) checkManhole(endlessMap_.getBlocks());
 
         if (steppedOnManhole) {
-            audio_.playFallSound();          // Play the falling sound
-            audio_.pauseVehicleAmbience();   // Silence the road traffic
+            audio_.playFallSound();
+            audio_.pauseVehicleAmbience();
             player_.kill();
 
-            if (state_ == UIState::EndlessPlay) {
+            // Endless and classic maps use different generation data, so the renderer follows the active mode rather than inferring it from assets.
+    if (state_ == UIState::EndlessPlay) {
                 finishEndlessRun();
             }
             else {
-                classicWon_ = false; // Đánh dấu thua
+                classicWon_ = false;
                 ctx_.classicLevel = ctx_.level;
                 ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
                 setState(UIState::GameOver);
             }
-            return; // Đã sụp cống thì ngừng tính toán thêm
+            return;
         }
-        // =========================================================================
+
     }
     else if (state_ == UIState::Pause || state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
     {
-        // 2. Pause traffic when paused, or in menus like Game Over / Main Menu
+
         if (audio_.vehicleAmbiencePlaying()) {
             audio_.pauseVehicleAmbience();
         }
@@ -1290,17 +1377,14 @@ void UIManager::update(float dt)
     if (gameplayStarted_ && state_ == UIState::EndlessPlay)
     {
         endlessMap_.update(cameraY_);
-        // World position remains unchanged; loss occurs only once the player
-        // sprite has passed completely below the bottom view edge.
+
         if (isEndlessPlayerOffscreen())
             finishEndlessRun();
     }
 
-    // Update obstacles only during active gameplay states
     if (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay) {
         if (gameplayStarted_) {
 
-            // Endless mode speed scaling
             float currentMultiplier = 1.0f;
             if (state_ == UIState::EndlessPlay) {
                 float distanceTraveled = std::abs(player_.getPosition().y + 1080.0f);
@@ -1308,15 +1392,11 @@ void UIManager::update(float dt)
                 else if (distanceTraveled > 5000.f) currentMultiplier = 1.5f;
             }
 
-            // 1. Move all obstacles first.
             for (auto obs : Obstacles) {
                 obs->setSpeedMultiplier(currentMultiplier);
                 obs->move(dt);
             }
 
-            // An obstacle is valid only when its collision-box centre belongs
-            // to a row whose LaneType matches the obstacle family. This also
-            // clears actors left behind when Endless removes an old MapBlock.
             auto isOnAssignedHazardLane = [](const CObstacle* obstacle, const auto& blocks) {
                 const sf::FloatRect bounds = obstacle->getBounds();
                 const float centerY = bounds.position.y + bounds.size.y * 0.5f;
@@ -1333,43 +1413,33 @@ void UIManager::update(float dt)
                 return false;
                 };
 
-            // 2. Clean up off-screen or invalid-lane actors with swap-and-pop.
             for (int i = 0; i < Obstacles.size(); ) {
                 const bool validLane = state_ == UIState::EndlessPlay
                     ? isOnAssignedHazardLane(Obstacles[i], endlessMap_.getBlocks())
                     : isOnAssignedHazardLane(Obstacles[i], classicMap_.getBlocks());
                 if (Obstacles[i]->isOffScreen() || !validLane) {
-                    delete Obstacles[i]; // Free the memory
+                    delete Obstacles[i];
 
-                    // Overwrite this slot with the last element in the vector
                     Obstacles[i] = Obstacles.back();
-                    // Shrink the vector by 1
+
                     Obstacles.pop_back();
 
-                    // Note: We DO NOT increment 'i' here, because we need to 
-                    // check the new swapped-in element on the next loop!
                 }
                 else {
                     ++i;
                 }
             }
 
-
-            // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
-                obstacleSpawnTimer_ = 1.0f; // Spawn slightly faster for more traffic
+                obstacleSpawnTimer_ = 1.0f;
 
-                // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
                     for (const MapBlock& block : blocks) {
                         for (int row = 0; row < LANES_PER_BLOCK; ++row) {
                             const LaneType type = block.lanes[row];
                             if (type == LaneType::Safe) continue;
 
-                            // Only create actors for lanes currently near the
-                            // viewport. This prevents pre-spawning actors in
-                            // blocks that have not entered the camera yet.
                             const float laneCenterY = Grid::rowCenter(block.startY, row);
                             if (laneCenterY < cameraY_ - Grid::CELL_SIZE ||
                                 laneCenterY > cameraY_ + Grid::MAP_HEIGHT + Grid::CELL_SIZE)
@@ -1381,7 +1451,6 @@ void UIManager::update(float dt)
                                 float laneTopY = block.startY + (row * Grid::CELL_SIZE);
                                 float rowY = laneTopY + (Grid::CELL_SIZE * 0.25f);
                                 float spawnX = (dir == RIGHT) ? Grid::GRID_LEFT - 150.f : Grid::GRID_RIGHT + 150.f;
-
 
                                 bool isBlocked = false;
                                 for (auto obs : Obstacles) {
@@ -1397,9 +1466,7 @@ void UIManager::update(float dt)
 
                                 if (!isBlocked) {
                                     if (type == LaneType::Vehicle) {
-                                        // Constructors use top-left positions;
-                                        // offset by half the actor height to
-                                        // put its collision box at lane center.
+
                                         if (row % 2 == 0) {
                                             Obstacles.push_back(new CCar(spawnX, laneCenterY - 30.f, dir));
                                         }
@@ -1410,13 +1477,13 @@ void UIManager::update(float dt)
                                     else if (type == LaneType::Animal) {
                                         if (row % 2 == 0) {
                                             Obstacles.push_back(new CCat(spawnX, rowY, dir));
-                                            // 10% chance for the cat to meow when it spawns!
-                                            if (rand() % 100 < 10) audio_.playAnimalSample(false); //false = cat
+
+                                            if (rand() % 100 < 10) audio_.playAnimalSample(false);
                                         }
                                         else {
                                             Obstacles.push_back(new CDeer(spawnX, rowY - 10, dir));
-                                            // 3% chance for the deer to grunt when it spawns!
-                                            if (rand() % 100 < 3) audio_.playAnimalSample(true); //true = deer
+
+                                            if (rand() % 100 < 3) audio_.playAnimalSample(true);
                                         }
                                     }
                                 }
@@ -1431,9 +1498,8 @@ void UIManager::update(float dt)
                 else {
                     spawnInBlocks(classicMap_.getBlocks());
                 }
-            } // <-- SPAWNER BLOCK ENDS HERE
+            }
 
-            // --- 4. TRAFFIC LIGHT SYSTEM ---
             trafficLightTimer_ += dt;
             if (currentLight_ == TrafficLight::Green && trafficLightTimer_ >= 4.0f) {
                 currentLight_ = TrafficLight::Yellow;
@@ -1451,7 +1517,6 @@ void UIManager::update(float dt)
                 trafficLightSprite_.setTexture(texTrafficGreen_);
             }
 
-            // Update vehicle behavior based on the current light state
             for (auto obs : Obstacles) {
                 if (CVehicle* vehicle = dynamic_cast<CVehicle*>(obs)) {
                     if (currentLight_ == TrafficLight::Red) {
@@ -1463,7 +1528,6 @@ void UIManager::update(float dt)
                 }
             }
 
-            // TÌM XEM CÓ NHẶT KHIÊN KHÔNG
             const sf::Vector2f playerPos = player_.getPosition();
             const int pCol = static_cast<int>(std::floor((playerPos.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
 
@@ -1475,9 +1539,9 @@ void UIManager::update(float dt)
                             if (Grid::isPlayableColumn(pCol) && block.shieldCols[row] == pCol) {
                                 if (!player_.hasShield()) {
                                     player_.giveShield();
-                                    audio_.playUiClick(); // Âm thanh nhặt
+                                    audio_.playUiClick();
                                 }
-                                block.shieldCols[row] = -1; // Xóa khiên khỏi map vì đã nhặt
+                                block.shieldCols[row] = -1;
                             }
                         }
                         break;
@@ -1488,8 +1552,7 @@ void UIManager::update(float dt)
             if (state_ == UIState::EndlessPlay) checkShieldPickup(endlessMap_.getMutableBlocks());
             else checkShieldPickup(classicMap_.getMutableBlocks());
 
-            // --- 5. COLLISION DETECTION ---
-            CGameObject* hitObstacle = nullptr; // Remember WHAT we hit
+            CGameObject* hitObstacle = nullptr;
 
             for (auto obs : Obstacles) {
                 if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
@@ -1502,23 +1565,22 @@ void UIManager::update(float dt)
 
             if (hitObstacle) {
                 if (player_.isInvincible()) {
-                    // Không làm gì cả vì đang nhấp nháy bất tử
+
                 }
                 else {
-                    // 1. Play the correct sound based on the obstacle type
+
                     if (dynamic_cast<CCat*>(hitObstacle)) {
-                        audio_.playAnimalSample(false); // Meow
+                        audio_.playAnimalSample(false);
                     }
                     else if (dynamic_cast<CDeer*>(hitObstacle)) {
-                        audio_.playAnimalSample(true);  // Deer grunt
+                        audio_.playAnimalSample(true);
                     }
                     else {
-                        audio_.playUiCrash();           // Vehicle metal crunch
+                        audio_.playUiCrash();
                     }
 
-                    // 2. Handle Shield or Death logic
                     if (player_.hasShield()) {
-                        player_.consumeShield(); // Mất khiên, bắt đầu bất tử 1s
+                        player_.consumeShield();
                     }
                     else {
                         player_.kill();
@@ -1537,13 +1599,13 @@ void UIManager::update(float dt)
         }
     }
 }
-// ---------------------------------------------------------------------
-//  State management helpers
-// ---------------------------------------------------------------------
+
+/**
+ * @brief Changes the screen through one path to keep focus, controls, and transition context synchronized.
+ */
 void UIManager::setState(UIState s)
 {
-    // Returning from Pause must preserve the current camera and generated
-    // blocks. All other transitions into a play state start a fresh run.
+
     const bool enteringClassic = s == UIState::ClassicPlay &&
                                  state_ != UIState::ClassicPlay && state_ != UIState::Pause;
     const bool enteringEndless = s == UIState::EndlessPlay &&
@@ -1560,11 +1622,14 @@ void UIManager::setState(UIState s)
     if (enteringClassic || enteringEndless)
         resetGameplay();
     if (s == UIState::Pause || previousState == UIState::Pause)
-        clock_.restart(); // Do not apply time spent in the pause menu as gameplay dt.
+        clock_.restart();
     focusIdx_ = 0;
     rebuildButtons();
 }
 
+/**
+ * @brief Performs the reset gameplay operation while preserving the current UI state invariants.
+ */
 void UIManager::resetGameplay()
 {
     cameraY_ = -Grid::MAP_HEIGHT;
@@ -1581,50 +1646,57 @@ void UIManager::resetGameplay()
     else
         classicMap_.init(std::clamp(ctx_.level, 1, CLASSIC_LEVELS));
 
-    // Clean up any old test obstacles
     for (auto obs : Obstacles) {
         delete obs;
     }
     Obstacles.clear();
-    obstacleSpawnTimer_ = 0.f; // Reset the timer when a new game starts  
+    obstacleSpawnTimer_ = 0.f;
     currentLight_ = TrafficLight::Green;
     trafficLightTimer_ = 0.f;
     trafficLightSprite_.setTexture(texTrafficGreen_);
 }
 
+/**
+ * @brief Performs the max walkable player y operation while preserving the current UI state invariants.
+ */
 float UIManager::maxWalkablePlayerY() const
 {
-    // A complete row must have its bottom edge at or above the viewport's
-    // lower edge. floor() correctly handles negative world coordinates.
+
     const float viewBottom = cameraY_ + Grid::MAP_HEIGHT;
     const float lastCompleteRowBottom = std::floor(viewBottom / Grid::CELL_SIZE) * Grid::CELL_SIZE;
     return lastCompleteRowBottom - Grid::CELL_SIZE * 0.5f;
 }
 
+/**
+ * @brief Performs the is endless player offscreen operation while preserving the current UI state invariants.
+ */
 bool UIManager::isEndlessPlayerOffscreen() const
 {
     return player_.getPosition().y - cameraY_ - player_.getBounds().size.y * 0.5f > Grid::MAP_HEIGHT;
 }
 
+/**
+ * @brief Performs the finish endless run operation while preserving the current UI state invariants.
+ */
 void UIManager::finishEndlessRun()
 {
     if (state_ != UIState::EndlessPlay) return;
     player_.kill();
-    // Capture result before any future resetGameplay()/EndlessMap::reset().
+
     ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
     setState(UIState::GameOver);
 }
 
+/**
+ * @brief Keeps the player readable on screen while allowing world coordinates to remain independent of the viewport.
+ */
 void UIManager::updateCamera(float dt)
 {
     if (state_ == UIState::EndlessPlay)
     {
-        // Base scroll moves up continuously after the first input.
+
         cameraY_ -= ENDLESS_SCROLL_SPEED * dt;
 
-        // When a fast player approaches the top 3-4 rows, smoothly move the
-        // camera farther up to restore the normal player anchor. This is a
-        // catch-up, not a change to the player's world position.
         const float playerScreenY = player_.getPosition().y - cameraY_;
         if (playerScreenY < ENDLESS_CATCHUP_DISTANCE)
         {
@@ -1639,26 +1711,27 @@ void UIManager::updateCamera(float dt)
         return;
     }
 
-    // Classic follows the advancing player only. At the top block, its start
-    // becomes the camera's immutable stop: that final 1080px block is fully
-    // visible and remains so for the rest of the level.
     const float stopY = classicMap_.topLimit();
     const float targetY = std::max(stopY, player_.getPosition().y - PLAYER_SCREEN_ANCHOR);
     if (targetY < cameraY_)
         cameraY_ = std::max(targetY, cameraY_ - CLASSIC_FOLLOW_SPEED * dt);
 
-    // A rapid sequence of player moves cannot let the player leave through
-    // the top while the smoothed camera is catching up.
     const float safeCameraY = std::max(stopY, player_.getPosition().y - PLAYER_TOP_SAFE_LINE);
     if (cameraY_ > safeCameraY)
         cameraY_ = safeCameraY;
 }
 
+/**
+ * @brief Converts pixels through the UI view so input follows letterboxing and view scaling.
+ */
 sf::Vector2f UIManager::toUiCoords(sf::Vector2i pixel) const
 {
     return win_.mapPixelToCoords(pixel, uiView_);
 }
 
+/**
+ * @brief Converts pixels into authored-art coordinates so one set of hitboxes works at every window size.
+ */
 sf::Vector2f UIManager::toBaseCoords(sf::Vector2i pixel) const
 {
     const sf::Vector2u size = win_.getSize();
@@ -1667,11 +1740,17 @@ sf::Vector2f UIManager::toBaseCoords(sf::Vector2i pixel) const
              pixel.y * (WINDOW_H / static_cast<float>(size.y)) };
 }
 
+/**
+ * @brief Performs the scaled menu bounds operation while preserving the current UI state invariants.
+ */
 sf::FloatRect UIManager::scaledMenuBounds(std::size_t index) const
 {
     return scaledBaseRect(kMainMenuButtonBounds.at(index));
 }
 
+/**
+ * @brief Scales authored hitboxes with the artwork, preventing click targets from drifting after a resize.
+ */
 sf::FloatRect UIManager::scaledBaseRect(const sf::FloatRect& base) const
 {
     const sf::Vector2u size = win_.getSize();
@@ -1681,6 +1760,9 @@ sf::FloatRect UIManager::scaledBaseRect(const sf::FloatRect& base) const
              { base.size.x * sx, base.size.y * sy } };
 }
 
+/**
+ * @brief Performs the set sfx volume from mouse operation while preserving the current UI state invariants.
+ */
 void UIManager::setSfxVolumeFromMouse(sf::Vector2i pixel)
 {
     const sf::FloatRect track = scaledBaseRect(kSfxTrackBounds);
@@ -1689,6 +1771,9 @@ void UIManager::setSfxVolumeFromMouse(sf::Vector2i pixel)
     applyAudioVolumes();
 }
 
+/**
+ * @brief Performs the set music volume from mouse operation while preserving the current UI state invariants.
+ */
 void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
 {
     const sf::FloatRect track = scaledBaseRect(kMusicTrackBounds);
@@ -1697,14 +1782,19 @@ void UIManager::setMusicVolumeFromMouse(sf::Vector2i pixel)
     applyAudioVolumes();
 }
 
+/**
+ * @brief Applies both volume categories together so persisted settings and live audio remain consistent.
+ */
 void UIManager::applyAudioVolumes()
 {
-    // Settings cua Player la phan tram (0..100). AudioManager nhan them
-    // Base Volume theo category de tao Final_Volume cho tung asset.
+
     audio_.setUserVolumes(static_cast<float>(cfg_.musicVolume),
                           static_cast<float>(cfg_.volume));
 }
 
+/**
+ * @brief Performs the handle debug audio mixer key operation while preserving the current UI state invariants.
+ */
 bool UIManager::handleDebugAudioMixerKey(const sf::Event::KeyPressed& key)
 {
     constexpr std::size_t categoryCount = static_cast<std::size_t>(AudioCategory::Count);
@@ -1730,6 +1820,9 @@ bool UIManager::handleDebugAudioMixerKey(const sf::Event::KeyPressed& key)
     }
 }
 
+/**
+ * @brief Performs the menu button at operation while preserving the current UI state invariants.
+ */
 int UIManager::menuButtonAt(sf::Vector2i pixel) const
 {
     const sf::Vector2f point(static_cast<float>(pixel.x), static_cast<float>(pixel.y));
@@ -1738,15 +1831,18 @@ int UIManager::menuButtonAt(sf::Vector2i pixel) const
     return -1;
 }
 
+/**
+ * @brief Performs the activate main menu button operation while preserving the current UI state invariants.
+ */
 void UIManager::activateMainMenuButton(std::size_t index)
 {
     focusIdx_ = static_cast<int>(index);
     switch (index)
     {
-    case 0: setState(UIState::ModeSelect); break;                         // Play
-    case 1: loadTabModeIdx_ = 0; setState(UIState::LoadGame); break;      // Load
-    case 2: setState(UIState::Graphic); break;                             // Graphic
-    case 3: setState(UIState::Setting); break;                             // Setting
+    case 0: setState(UIState::ModeSelect); break;
+    case 1: loadTabModeIdx_ = 0; setState(UIState::LoadGame); break;
+    case 2: setState(UIState::Graphic); break;
+    case 3: setState(UIState::Setting); break;
     case 4: setState(UIState::Ranking); break;
     case 5: setState(UIState::Help); break;
     case 6: modal_ = Modal::ConfirmExit; break;
@@ -1754,6 +1850,9 @@ void UIManager::activateMainMenuButton(std::size_t index)
     }
 }
 
+/**
+ * @brief Performs the move focus operation while preserving the current UI state invariants.
+ */
 void UIManager::moveFocus(int dir)
 {
     if (btns_.empty()) return;
@@ -1766,18 +1865,23 @@ void UIManager::moveFocus(int dir)
     for (int i = 0; i < n; ++i) btns_[i].setFocused(i == focusIdx_);
 }
 
+/**
+ * @brief Performs the activate focused operation while preserving the current UI state invariants.
+ */
 void UIManager::activateFocused()
 {
     if (btns_.empty()) return;
     if (focusIdx_ < 0 || focusIdx_ >= (int)btns_.size()) return;
     if (!btns_[focusIdx_].isEnabled()) return;
     btns_[focusIdx_].consumeEnter();
-    // Each button was created with a capturing lambda; calling its callback
-    // is done by binding a std::function during rebuildButtons().
+
     if (focusIdx_ < (int)btnActions_.size() && btnActions_[focusIdx_])
         btnActions_[focusIdx_]();
 }
 
+/**
+ * @brief Builds controls after each transition so callbacks always belong to the active screen.
+ */
 void UIManager::rebuildButtons()
 {
     btns_.clear();
@@ -1815,12 +1919,11 @@ void UIManager::rebuildButtons()
     }
 
     case UIState::ModeSelect:
-        // GameMode.png uses direct transparent hitboxes instead of Button.
+
         break;
 
     case UIState::LevelSelect:
-        // The themed Level.png artwork owns appearance. Level cards use
-        // dedicated transparent sf::FloatRect hitboxes, not Button widgets.
+
         break;
 
     case UIState::Setting:
@@ -1835,7 +1938,7 @@ void UIManager::rebuildButtons()
 
     case UIState::LoadGame:
     {
-        // First two buttons: tab selectors.
+
         add({ 200, 150 }, { 200, 48 }, loadTabModeIdx_ == 0 ? "[X] Classic" : "[ ] Classic",
             Button::Style::Subtle, [this] { loadTabModeIdx_ = 0; rebuildButtons(); });
         add({ 420, 150 }, { 200, 48 }, loadTabModeIdx_ == 1 ? "[X] Endless" : "[ ] Endless",
@@ -1848,7 +1951,6 @@ void UIManager::rebuildButtons()
             const float y = 260.f;
             std::string label = "Slot " + std::to_string(i + 1) + "  (empty)";
 
-            // ĐỔI 0 THÀNH i ĐỂ HIỂN THỊ ĐÚNG DATA CỦA 3 SLOT
             if (!slots[i].name.empty())
             {
                 label = "Slot " + std::to_string(i + 1) + ": " + slots[i].name
@@ -1856,12 +1958,11 @@ void UIManager::rebuildButtons()
                     + "  " + std::to_string(slots[i].elapsedSec) + "s";
             }
 
-            // ĐỔI 0 THÀNH i ĐỂ MỞ KHÓA CLICK CHO CẢ 3 SLOT
             const bool filled = !slots[i].name.empty();
 
             add({ x, y }, { 240, 120 }, label, Button::Style::Primary, [this, m, i] {
                 const auto s2 = saves_.slots(m);
-                // ĐỔI 0 THÀNH i
+
                 if (!s2[i].name.empty())
                 {
                     ctx_.pendingName = s2[i].name;
@@ -1872,12 +1973,10 @@ void UIManager::rebuildButtons()
                         ? StateContext::Mode::Endless
                         : StateContext::Mode::Classic;
 
-                    // Hàm này gọi resetGameplay(), đưa nhân vật về vạch xuất phát
                     setState(m == GameMode::Endless
                         ? UIState::EndlessPlay
                         : UIState::ClassicPlay);
 
-                    // NGAY SAU KHI SETSTATE, GHI ĐÈ LẠI TỌA ĐỘ VÀ THỜI GIAN ĐÃ LƯU
                     player_.setPosition({ s2[i].playerX, s2[i].playerY });
                     player_.revive();
                     cameraY_ = s2[i].cameraY;
@@ -1901,9 +2000,9 @@ void UIManager::rebuildButtons()
     for (int i = 0; i < (int)btns_.size(); ++i) btns_[i].setFocused(i == focusIdx_);
 }
 
-// ---------------------------------------------------------------------
-//  Text input validation
-// ---------------------------------------------------------------------
+/**
+ * @brief Performs the is valid name char operation while preserving the current UI state invariants.
+ */
 bool UIManager::isValidNameChar(std::uint32_t c)
 {
     if (c == ' ') return true;
@@ -1914,6 +2013,9 @@ bool UIManager::isValidNameChar(std::uint32_t c)
     return false;
 }
 
+/**
+ * @brief Performs the is valid name operation while preserving the current UI state invariants.
+ */
 bool UIManager::isValidName(const std::string& s)
 {
     if (s.empty() || (int)s.size() > NAME_MAX) return false;
@@ -1921,9 +2023,9 @@ bool UIManager::isValidName(const std::string& s)
     return true;
 }
 
-// ---------------------------------------------------------------------
-//  Drawing helpers
-// ---------------------------------------------------------------------
+/**
+ * @brief Performs the draw background operation while preserving the current UI state invariants.
+ */
 void UIManager::drawBackground()
 {
     if (assetsLoaded_)
@@ -1969,6 +2071,9 @@ void UIManager::drawBackground()
     }
 }
 
+/**
+ * @brief Performs the draw main menu debug overlay operation while preserving the current UI state invariants.
+ */
 void UIManager::drawMainMenuDebugOverlay()
 {
     static const std::array<std::string, 7> labels = {
@@ -1994,10 +2099,13 @@ void UIManager::drawMainMenuDebugOverlay()
     }
 }
 
+/**
+ * @brief Performs the draw main menu hover glow operation while preserving the current UI state invariants.
+ */
 void UIManager::drawMainMenuHoverGlow()
 {
     const int hovered = menuButtonAt(sf::Mouse::getPosition(win_));
-    if (hovered < 0) return; // Normal state is fully transparent.
+    if (hovered < 0) return;
 
     const sf::FloatRect bounds = scaledMenuBounds(static_cast<std::size_t>(hovered));
     if (hovered < 4)
@@ -2018,6 +2126,9 @@ void UIManager::drawMainMenuHoverGlow()
     }
 }
 
+/**
+ * @brief Performs the draw mouse debug info operation while preserving the current UI state invariants.
+ */
 void UIManager::drawMouseDebugInfo()
 {
     if (!fontLoaded_) return;
@@ -2033,12 +2144,13 @@ void UIManager::drawMouseDebugInfo()
     win_.draw(debugText_);
 }
 
+/**
+ * @brief Performs the draw debug audio mixer operation while preserving the current UI state invariants.
+ */
 void UIManager::drawDebugAudioMixer()
 {
     if (!fontLoaded_) return;
 
-    // Toa do theo pixel cua cua so de overlay luon de doc o ca man hinh
-    // gameplay (default view) lan cac man UI (uiView_).
     const sf::Vector2u windowSize = win_.getSize();
     constexpr float panelWidth = 370.f;
     constexpr float rowHeight = 38.f;
@@ -2098,6 +2210,9 @@ void UIManager::drawDebugAudioMixer()
     win_.draw(help);
 }
 
+/**
+ * @brief Performs the draw active debug hitboxes operation while preserving the current UI state invariants.
+ */
 void UIManager::drawActiveDebugHitboxes()
 {
     const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
@@ -2148,7 +2263,6 @@ void UIManager::drawActiveDebugHitboxes()
         }
     }
 
-    // Global seasonal BackButton hitbox (all non-gameplay screens that show it).
     if (state_ != UIState::Boot && state_ != UIState::MainMenu && state_ != UIState::Pause &&
         state_ != UIState::ClassicPlay && state_ != UIState::EndlessPlay)
         box(sf::FloatRect({ 1721.f, 24.f }, { 175.f, 77.f }));
@@ -2181,6 +2295,9 @@ void UIManager::drawActiveDebugHitboxes()
     }
 }
 
+/**
+ * @brief Performs the draw gameplay sidebar hitboxes operation while preserving the current UI state invariants.
+ */
 void UIManager::drawGameplaySidebarHitboxes()
 {
     const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
@@ -2195,17 +2312,18 @@ void UIManager::drawGameplaySidebarHitboxes()
     }
 }
 
+/**
+ * @brief Performs the draw back icon operation while preserving the current UI state invariants.
+ */
 void UIManager::drawBackIcon()
 {
     if (state_ == UIState::Boot || state_ == UIState::MainMenu || state_ == UIState::Pause ||
         state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay)
         return;
-    // BackButton is authored in the seasonal 1920x1080 layout.  Draw and
-    // hit-test it in physical pixels so it stays in the top-right corner at
-    // every window size.
-    // 25:11 visual and interaction ratio, anchored to the authored 1920x1080 UI.
+
     const sf::FloatRect base({ 1721.f, 24.f }, { 175.f, 77.f });
-    const sf::FloatRect bounds = scaledBaseRect(base);
+    // Scale authored coordinates at draw time so a single layout remains valid for every window size.
+        const sf::FloatRect bounds = scaledBaseRect(base);
     win_.setView(win_.getDefaultView());
     if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
     {
@@ -2224,6 +2342,9 @@ void UIManager::drawBackIcon()
     win_.setView(uiView_);
 }
 
+/**
+ * @brief Performs the draw modal overlay operation while preserving the current UI state invariants.
+ */
 void UIManager::drawModalOverlay()
 {
     if (modal_ == Modal::None) return;
@@ -2250,7 +2371,6 @@ void UIManager::drawModalOverlay()
         return;
     }
 
-    // Existing main-menu exit prompt remains unchanged.
     sf::RectangleShape dim({ UI_W, UI_H });
     dim.setFillColor(sf::Color(0, 0, 0, 160));
     win_.draw(dim);
@@ -2286,17 +2406,16 @@ void UIManager::drawCenteredText(const std::string& s, float y, unsigned int siz
     win_.draw(t);
 }
 
-// ---------------------------------------------------------------------
-//  Top-level render dispatch
-// ---------------------------------------------------------------------
+/**
+ * @brief Draws the active screen before any modal, preserving the modal as the topmost interaction layer.
+ */
 void UIManager::render()
 {
     const bool gameplay = state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay;
     const bool paused = state_ == UIState::Pause;
     if (paused)
     {
-        // The world was captured once on entering Pause. Do not redraw maps,
-        // actors or HUD while the modal is open.
+
         win_.setView(win_.getDefaultView());
         win_.clear(sf::Color(21, 25, 31));
         if (pauseFrameValid_ && pauseFrameTex_.getSize().x != 0) {
@@ -2316,7 +2435,7 @@ void UIManager::render()
     }
     else
     {
-        // Backgrounds use physical window pixels so they fill any resolution.
+
         win_.setView(win_.getDefaultView());
         drawBackground();
         win_.setView(uiView_);
@@ -2346,16 +2465,12 @@ void UIManager::render()
     if (modal_ != Modal::None)
         drawModalOverlay();
 
-    // The transparent menu hitboxes need only a hover layer. Draw it after
-    // the menu image, but before debug information.
     if (state_ == UIState::MainMenu)
     {
         win_.setView(win_.getDefaultView());
         drawMainMenuHoverGlow();
     }
 
-    // Last draw calls in the frame: debug text cannot be hidden by a
-    // background, modal, button or hover effect. It also works in gameplay.
     if (debugUi_)
     {
         win_.setView(win_.getDefaultView());
@@ -2373,9 +2488,9 @@ void UIManager::render()
     win_.display();
 }
 
-// ---------------------------------------------------------------------
-//  Per-screen render
-// ---------------------------------------------------------------------
+/**
+ * @brief Performs the render boot operation while preserving the current UI state invariants.
+ */
 void UIManager::renderBoot()
 {
     if (assetsLoaded_)
@@ -2391,16 +2506,25 @@ void UIManager::renderBoot()
     drawCenteredText("(c) 2026",        640, 18, sf::Color(180, 180, 180));
 }
 
+/**
+ * @brief Performs the render main menu operation while preserving the current UI state invariants.
+ */
 void UIManager::renderMainMenu()
 {
-    // Artwork and labels are part of the seasonal MainMenu background.
+
 }
 
+/**
+ * @brief Performs the render mode sel operation while preserving the current UI state invariants.
+ */
 void UIManager::renderModeSel()
 {
-    // GameMode.png contains all visible labels and illustrations.
+
 }
 
+/**
+ * @brief Performs the render name operation while preserving the current UI state invariants.
+ */
 void UIManager::renderName()
 {
     win_.setView(win_.getDefaultView());
@@ -2423,8 +2547,6 @@ void UIManager::renderName()
     t.setPosition({ input.position.x + 20.f, input.position.y + 21.f });
     win_.draw(t);
 
-    // The confirmation control is an invisible hitbox; only its caption is
-    // drawn so it fits the supplied UserName artwork without extra button art.
     sf::Text confirmText(font_, "CONFIRM", 29);
     confirmText.setFillColor(sf::Color::White);
     confirmText.setOutlineColor(sf::Color(30, 95, 170));
@@ -2436,10 +2558,12 @@ void UIManager::renderName()
     win_.setView(uiView_);
 }
 
+/**
+ * @brief Performs the render lvl sel operation while preserving the current UI state invariants.
+ */
 void UIManager::renderLvlSel()
 {
-    // Level.png has already been drawn at physical window resolution. Draw
-    // cards and labels in that same coordinate space, then restore uiView_.
+
     win_.setView(win_.getDefaultView());
     for (std::size_t i = 0; i < kLevelButtonBounds.size(); ++i)
     {
@@ -2464,6 +2588,9 @@ void UIManager::renderLvlSel()
     win_.setView(uiView_);
 }
 
+/**
+ * @brief Performs the render setting operation while preserving the current UI state invariants.
+ */
 void UIManager::renderSetting()
 {
     win_.setView(win_.getDefaultView());
@@ -2475,7 +2602,7 @@ void UIManager::renderSetting()
             sf::Sprite knob(settingButtonTex_);
             const sf::Vector2u knobSize = settingButtonTex_.getSize();
             const float knobWidth = std::max(21.f, b.size.y * 1.4f);
-            const float knobHeight = knobWidth * 10.f / 7.f; // SettingButton ratio: 7:10.
+            const float knobHeight = knobWidth * 10.f / 7.f;
             knob.setOrigin({ knobSize.x * 0.5f, knobSize.y * 0.5f });
             knob.setScale({ knobWidth / knobSize.x, knobHeight / knobSize.y });
             knob.setPosition({ b.position.x + b.size.x * value / 100.f, b.position.y + b.size.y * .5f });
@@ -2488,20 +2615,20 @@ void UIManager::renderSetting()
     win_.setView(uiView_);
 }
 
+/**
+ * @brief Performs the render graphic operation while preserving the current UI state invariants.
+ */
 void UIManager::renderGraphic()
 {
     win_.setView(win_.getDefaultView());
     const sf::FloatRect characterPanel = scaledBaseRect(kCharacterPanelBounds);
     const sf::FloatRect themePanel = scaledBaseRect(kThemePanelBounds);
 
-    // Character sprites are not available yet, so preserve the existing
-    // geometry-only placeholder and center it in the panel.
     CharacterRenderer::draw(win_, previewCharacterId_,
                             { characterPanel.position.x + characterPanel.size.x * .5f,
                               characterPanel.position.y + characterPanel.size.y * .5f },
                             std::min(characterPanel.size.x, characterPanel.size.y) * .22f);
 
-    // IconTheme is loaded only when the preview season changes, never here.
     if (iconThemeTex_.getSize().x != 0 && iconThemeTex_.getSize().y != 0) {
         sf::Sprite icon(iconThemeTex_);
         const sf::Vector2u iconSize = iconThemeTex_.getSize();
@@ -2516,6 +2643,9 @@ void UIManager::renderGraphic()
     win_.setView(uiView_);
 }
 
+/**
+ * @brief Performs the render load operation while preserving the current UI state invariants.
+ */
 void UIManager::renderLoad()
 {
     constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
@@ -2525,7 +2655,7 @@ void UIManager::renderLoad()
     };
 
     auto drawColumn = [&](GameMode mode, float x, int colorOffset) {
-        const auto slots = saves_.slots(mode); // SaveStore returns newest first.
+        const auto slots = saves_.slots(mode);
         for (int place = 0; place < SaveStore::kMaxSlots; ++place) {
             const bool hasSave = !slots[place].name.empty();
             const std::string name = hasSave ? slots[place].name : "---";
@@ -2557,6 +2687,9 @@ void UIManager::renderLoad()
     drawColumn(GameMode::Endless, 770.f, 3);
 }
 
+/**
+ * @brief Performs the render ranking operation while preserving the current UI state invariants.
+ */
 void UIManager::renderRanking()
 {
     constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
@@ -2589,81 +2722,10 @@ void UIManager::renderRanking()
     drawColumn(GameMode::Endless, 758.f, 3);
 }
 
-#if 0 // Replaced by the fixed six-entry medal layout above.
-void UIManager::renderRanking_legacy()
-{
-    const GameMode m = (rankTabModeIdx_ == 0) ? GameMode::Classic : GameMode::Endless;
-    const std::string title = (m == GameMode::Classic) ? "RANKING  -  CLASSIC" : "RANKING  -  ENDLESS";
-    drawCenteredText(title, 100, 36, sf::Color::White, true);
 
-    for (auto& b : btns_) b.draw(win_, font_);
-
-    const auto rows = ranks_.all(m);
-    const int total    = (int)rows.size();
-    const int maxOff   = std::max(0, total - RankingStore::kMaxVisible);
-    rankScrollOffset_  = std::clamp(rankScrollOffset_, 0, maxOff);
-
-    const int end = std::min(total, rankScrollOffset_ + RankingStore::kMaxVisible);
-    const float baseY = 240.f;
-    const float rowH  = 36.f;
-
-    std::string headerStr = (m == GameMode::Classic)
-        ? "  #   Name                 Lvl     Time"
-        : "  #   Name                 Time";
-    sf::Text header(font_, headerStr, 18);
-    header.setFillColor(sf::Color(200, 200, 200));
-    header.setPosition({ 220, baseY - 30 });
-    win_.draw(header);
-
-    for (int i = rankScrollOffset_; i < end; ++i)
-    {
-        const auto& r = rows[i];
-        std::string line = "  " + std::to_string(i + 1) + ".  " + r.name;
-
-        // Căn lề cột Name (khoảng 26 ký tự)
-        while ((int)line.size() < 26) line += ' ';
-
-        if (m == GameMode::Classic) {
-            std::string lvlStr = std::to_string(r.level);
-            // Căn lề cột Lvl (khoảng 8 ký tự)
-            while ((int)lvlStr.size() < 8) lvlStr += ' ';
-            line += lvlStr + std::to_string(r.elapsedSec) + "s";
-        }
-        else {
-            // Chế độ Endless chỉ in thời gian sống
-            line += std::to_string(r.elapsedSec) + "s";
-        }
-
-        // (Đã xóa bỏ hoàn toàn phần in r.savedAtUnix ở đây)
-
-        sf::Text row(font_, line, 20);
-        row.setFillColor((i == rankScrollOffset_) ? colorFromHex(0xFFD24A) : sf::Color::White);
-        row.setPosition({ 220, baseY + (i - rankScrollOffset_) * rowH });
-        win_.draw(row);
-    }
-
-    // Scrollbar.
-    if (total > RankingStore::kMaxVisible)
-    {
-        const float barX = UI_W - 60;
-        const float barY = 240;
-        const float barH = rowH * RankingStore::kMaxVisible;
-        sf::RectangleShape track({ 6, barH });
-        track.setPosition({ barX, barY });
-        track.setFillColor(sf::Color(60, 60, 60));
-        win_.draw(track);
-        const float thumbH = std::max(20.f, barH * (RankingStore::kMaxVisible / (float)total));
-        const float thumbY = barY + (barH - thumbH) * (rankScrollOffset_ / (float)maxOff);
-        sf::RectangleShape thumb({ 10, thumbH });
-        thumb.setPosition({ barX - 2, thumbY });
-        thumb.setFillColor(sf::Color(180, 180, 220));
-        win_.draw(thumb);
-    }
-
-    drawCenteredText("Wheel / Up-Down / PageUp-Down to scroll", 660, 18, sf::Color(180, 180, 180));
-}
-#endif
-
+/**
+ * @brief Performs the render help operation while preserving the current UI state invariants.
+ */
 void UIManager::renderHelp()
 {
     drawCenteredText("HOW TO PLAY", 80, 40, sf::Color::White, true);
@@ -2686,22 +2748,25 @@ void UIManager::renderHelp()
     for (auto& b : btns_) b.draw(win_, font_);
 }
 
+/**
+ * @brief Renders a map block with the camera offset while collision continues to use stable world coordinates.
+ */
 void UIManager::drawMapBlock(const MapBlock& block, float cameraY)
 {
-    // Collision still consumes block.manholeCols; only the old debug drawing
-    // was removed. The sprite's world-space rectangle follows the camera.
+
     mapBackground_.drawBlock(win_, mapImageKey(block), block.blockID,
                              block.startY, block.height(), cameraY);
 }
 
+/**
+ * @brief Uses the block-selected artwork key to keep rendered lanes aligned with the generated map data.
+ */
 std::string UIManager::mapImageKey(const MapBlock& block) const
 {
-    // Endless chooses a random level layout. Rendering must use the exact
-    // same level image as the one that produced block.lanes.
+
     if (!block.mapImageKey.empty())
         return block.mapImageKey;
 
-    // Fallback retained for legacy blocks created before mapImageKey existed.
     if (state_ == UIState::ClassicPlay) {
         const int level = std::clamp(ctx_.level, 1, CLASSIC_LEVELS);
         return "map_level_" + std::to_string(level) + (block.blockID == 0 ? "" : ".1");
@@ -2709,11 +2774,17 @@ std::string UIManager::mapImageKey(const MapBlock& block) const
     return "map_level_" + std::to_string((block.blockID % CLASSIC_LEVELS) + 1);
 }
 
+/**
+ * @brief Performs the draw player operation while preserving the current UI state invariants.
+ */
 void UIManager::drawPlayer()
 {
     player_.draw(win_, cameraY_);
 }
 
+/**
+ * @brief Draws gameplay in layer order so world actors remain behind HUD and sidebar controls.
+ */
 void UIManager::renderPlay()
 {
     if (state_ == UIState::EndlessPlay) {
@@ -2725,49 +2796,41 @@ void UIManager::renderPlay()
             drawMapBlock(block, cameraY_);
     }
 
-    // Draw the test obstacles with camera offset
     for (auto obs : Obstacles) {
         obs->draw(win_, cameraY_);
     }
 
     drawPlayer();
 
-    // Layered after every gameplay actor and before the HUD.
+    // Draw the signal above world actors so its state remains readable without obscuring sidebar controls.
     win_.draw(trafficLightSprite_);
 
-    // --- DEBUG HITBOX DRAWING ---
     if (debugUi_) {
-        // 1. Draw NEON MAGENTA Hitboxes for all Obstacles
+
         for (auto obs : Obstacles) {
             sf::FloatRect bounds = obs->getBounds();
             sf::RectangleShape box(bounds.size);
             box.setPosition({ bounds.position.x, bounds.position.y - cameraY_ });
             box.setFillColor(sf::Color::Transparent);
             box.setOutlineColor(sf::Color::Magenta);
-            box.setOutlineThickness(-4.0f); // NEGATIVE draws outwards!
+            box.setOutlineThickness(-4.0f);
             win_.draw(box);
         }
 
-        // 2. Draw NEON CYAN Hitbox for the Player
         sf::FloatRect pBounds = player_.getBounds();
         sf::RectangleShape pBox(pBounds.size);
         pBox.setPosition({ pBounds.position.x, pBounds.position.y - cameraY_ });
         pBox.setFillColor(sf::Color::Transparent);
         pBox.setOutlineColor(sf::Color::Cyan);
-        pBox.setOutlineThickness(-4.0f); // NEGATIVE draws outwards!
+        pBox.setOutlineThickness(-4.0f);
         win_.draw(pBox);
     }
-    // ----------------------------
 
-    // The map is the bottom layer. Cover the otherwise unused right-hand
-    // gameplay area with light gray before drawing the ScoreTable above it.
     sf::RectangleShape sidebarBackground({ Grid::SIDEBAR_WIDTH, Grid::MAP_HEIGHT });
     sidebarBackground.setPosition({ Grid::MAP_WIDTH, 0.f });
     sidebarBackground.setFillColor(sf::Color(211, 211, 211));
     win_.draw(sidebarBackground);
 
-    // ScoreTable is a seasonal, preloaded texture. Stretch it only to the
-    // documented gameplay sidebar (600x1080), never reload it per frame.
     if (scoreTableAssetLoaded_ && scoreTableTex_.getSize().x != 0 && scoreTableTex_.getSize().y != 0) {
         sf::Sprite sidebar(scoreTableTex_);
         sidebar.setScale({ Grid::SIDEBAR_WIDTH / scoreTableTex_.getSize().x,
@@ -2782,8 +2845,7 @@ void UIManager::renderPlay()
     const std::string timer = std::to_string(minutes / 10) +
         std::to_string(minutes % 10) + ":" +
         std::to_string(seconds / 10) + std::to_string(seconds % 10);
-    // 551x1012 ScoreTable authoring coordinates: directly below its TIME:
-    // label. Centering the variable-width string keeps all values aligned.
+
     const float scoreScaleY = Grid::MAP_HEIGHT / 1012.f;
     sf::Text timerText(font_, timer, static_cast<unsigned int>(48.f * scoreScaleY));
     timerText.setFillColor(sf::Color::White);
@@ -2793,13 +2855,12 @@ void UIManager::renderPlay()
                             285.f * scoreScaleY - timerBounds.position.y });
     win_.draw(timerText);
 
-    // 1. Vẽ khiên rơi trên đường
     auto drawShields = [&](const auto& mapBlocks) {
         for (const auto& block : mapBlocks) {
             for (int row = 0; row < LANES_PER_BLOCK; ++row) {
                 if (block.shieldCols[row] != -1) {
                     sf::Sprite s(texShieldItem_);
-                    // Căn giữa tấm ảnh khiên
+
                     s.setOrigin({ static_cast<float>(texShieldItem_.getSize().x) / 2.f, static_cast<float>(texShieldItem_.getSize().y) / 2.f });
                     s.setPosition({ Grid::columnCenter(block.shieldCols[row]), Grid::rowCenter(block.startY, row) - cameraY_ });
                     s.setScale({ 1.5f, 1.5f });
@@ -2812,7 +2873,6 @@ void UIManager::renderPlay()
     if (state_ == UIState::EndlessPlay) drawShields(endlessMap_.getBlocks());
     else drawShields(classicMap_.getBlocks());
 
-    // 2. Vẽ HUD Khiên ở góc trái trên cùng (chỉ hiện khi đang cầm)
     if (player_.hasShield()) {
         sf::Sprite hudShield(texShieldItem_);
         hudShield.setScale({ 1.5f, 1.5f });
@@ -2822,7 +2882,9 @@ void UIManager::renderPlay()
 
 }
 
-
+/**
+ * @brief Performs the render game over operation while preserving the current UI state invariants.
+ */
 void UIManager::renderGameOver()
 {
     drawCenteredText(classicWon_ ? "LEVEL COMPLETE" : "GAME OVER", 220, 56,
@@ -2842,13 +2904,14 @@ void UIManager::renderGameOver()
                      460, 20, sf::Color(200, 200, 200));
 }
 
+/**
+ * @brief Performs the render pause operation while preserving the current UI state invariants.
+ */
 void UIManager::renderPause()
 {
     if (!pauseAssetLoaded_ || pauseTex_.getSize().x == 0 || pauseTex_.getSize().y == 0)
         return;
 
-    // Exact 1200x870 (40:29) centered Pause.png. Resume/Out are deliberately
-    // not drawn: their artwork lives in this image and their hitboxes are invisible.
     win_.setView(win_.getDefaultView());
     const sf::FloatRect bounds = pauseOverlayBounds();
     sf::Sprite overlay(pauseTex_);

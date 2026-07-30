@@ -1,4 +1,8 @@
-﻿#include "CharacterRenderer.h"
+/**
+ * @file CharacterRenderer.cpp
+ * @brief Implements UI rendering and interaction behavior.
+ */
+#include "CharacterRenderer.h"
 #include <iostream>
 
 namespace {
@@ -9,7 +13,7 @@ namespace {
 void CharacterRenderer::loadAssets() {
     if (isLoaded) return;
     for (int i = 0; i < kCharacterCount; ++i) {
-        // Nạp 4 file character1.png đến character4.png
+
         std::string path = "assets/characters/character" + std::to_string(i + 1) + ".png";
         if (!textures[i].loadFromFile(path)) {
             std::cerr << "[CharacterRenderer] Warning: Could not load " << path << "\n";
@@ -28,12 +32,11 @@ std::string CharacterRenderer::name(int id) {
 }
 
 void CharacterRenderer::draw(sf::RenderTarget& target, int id, sf::Vector2f center, float radius, int directionRow, int frameCol) {
-    loadAssets(); // Lazy load: Tự động nạp ảnh ở lần vẽ đầu tiên
+    loadAssets();
 
     id = normalizeID(id);
     sf::Texture& tex = textures[id - 1];
 
-    // Nếu chưa có file ảnh, vẽ một hình tròn đỏ làm fallback báo lỗi
     if (tex.getSize().x == 0) {
         sf::CircleShape fallback(radius);
         fallback.setOrigin({ radius, radius });
@@ -45,17 +48,13 @@ void CharacterRenderer::draw(sf::RenderTarget& target, int id, sf::Vector2f cent
 
     sf::Sprite sprite(tex);
 
-    // Tính toán kích thước 1 khung hình (Sheet có 3 cột, 4 hàng)
     int frameWidth = tex.getSize().x / 3;
     int frameHeight = tex.getSize().y / 4;
 
-    // Cắt đúng vị trí frame theo hướng (hàng) và nhịp bước (cột)
     sprite.setTextureRect(sf::IntRect({ frameCol * frameWidth, directionRow * frameHeight }, { frameWidth, frameHeight }));
 
-    // Chỉnh tâm bức ảnh về giữa
     sprite.setOrigin({ frameWidth / 2.0f, frameHeight / 2.0f });
 
-    // Scale sprite lên cho vừa vặn với hitbox (dựa trên radius)
     float scale = (radius * 2.2f) / frameHeight;
     sprite.setScale({ scale, scale });
 

@@ -1,3 +1,7 @@
+/**
+ * @file Button.cpp
+ * @brief Implements UI rendering and interaction behavior.
+ */
 #include "Button.h"
 #include <cmath>
 
@@ -54,46 +58,70 @@ Button::Button(const sf::Font& font,
     applyColors();
 }
 
+/**
+ * @brief Performs the set enabled operation while preserving the current UI state invariants.
+ */
 void Button::setEnabled(bool e)
 {
     enabled_ = e;
     applyColors();
 }
 
+/**
+ * @brief Performs the set focused operation while preserving the current UI state invariants.
+ */
 void Button::setFocused(bool f)
 {
     focused_ = f;
     applyColors();
 }
 
+/**
+ * @brief Performs the set label operation while preserving the current UI state invariants.
+ */
 void Button::setLabel(const std::string& s)
 {
     label_.setString(s);
 }
 
+/**
+ * @brief Performs the set alpha operation while preserving the current UI state invariants.
+ */
 void Button::setAlpha(float a)
 {
     alpha_ = std::clamp(a, 0.f, 1.f);
 }
 
+/**
+ * @brief Advances state that depends on elapsed time after input has established the current intent.
+ */
 void Button::update(sf::Vector2f mousePos)
 {
     if (!enabled_) { hovered_ = false; return; }
     hovered_ = contains(mousePos);
 }
 
+/**
+ * @brief Performs the contains operation while preserving the current UI state invariants.
+ */
 bool Button::contains(sf::Vector2f mousePos) const
 {
     return enabled_ && bounds().contains(toLogicalUi(mousePos));
 }
 
+/**
+ * @brief Performs the consume click operation while preserving the current UI state invariants.
+ */
 bool Button::consumeClick(sf::Vector2f mousePos)
 {
     if (!enabled_) return false;
-    // UIManager dispatches MouseButtonPressed only once per click.
+
     return bounds().contains(toLogicalUi(mousePos));
 }
 
+/**
+ * @brief Performs the consume enter operation while preserving the current UI state invariants.
+ */
 bool Button::consumeEnter()
 {
     if (!enabled_ || !focused_) { enterArmed_ = false; return false; }
@@ -102,6 +130,9 @@ bool Button::consumeEnter()
     return true;
 }
 
+/**
+ * @brief Performs the apply colors operation while preserving the current UI state invariants.
+ */
 void Button::applyColors()
 {
     box_.setFillColor   (fillFor(style_, enabled_, hovered_, focused_));
@@ -109,6 +140,9 @@ void Button::applyColors()
     label_.setFillColor(enabled_ ? sf::Color::White : sf::Color(150, 150, 150, 200));
 }
 
+/**
+ * @brief Performs the draw operation while preserving the current UI state invariants.
+ */
 void Button::draw(sf::RenderWindow& win, const sf::Font& font)
 {
     if (!fontAttached_)
@@ -117,7 +151,6 @@ void Button::draw(sf::RenderWindow& win, const sf::Font& font)
         fontAttached_ = true;
     }
 
-    // Center label inside box
     const sf::FloatRect lb = label_.getLocalBounds();
     label_.setOrigin({ lb.position.x + lb.size.x * 0.5f,
                        lb.position.y + lb.size.y * 0.5f });
@@ -136,7 +169,6 @@ void Button::draw(sf::RenderWindow& win, const sf::Font& font)
     win.draw(box_);
     win.draw(label_);
 
-    // Restore for next frame
     box_.setFillColor(fc);
     box_.setOutlineColor(oc);
     label_.setFillColor(lc);

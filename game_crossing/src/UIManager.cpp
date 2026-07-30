@@ -1136,7 +1136,7 @@ void UIManager::update(float dt)
             // 3. THE SPAWNER
             obstacleSpawnTimer_ -= dt;
             if (obstacleSpawnTimer_ <= 0.f) {
-                obstacleSpawnTimer_ = 1.5f; // Spawn slightly faster for more traffic
+                obstacleSpawnTimer_ = 1.0f; // Spawn slightly faster for more traffic
 
                 // Helper lambda to scan map blocks and spawn obstacles
                 auto spawnInBlocks = [&](const auto& blocks) {
@@ -1182,7 +1182,7 @@ void UIManager::update(float dt)
                                             Obstacles.push_back(new CCar(spawnX, laneCenterY - 30.f, dir));
                                         }
                                         else {
-                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 90.f, dir));
+                                            Obstacles.push_back(new CTruck(spawnX, laneCenterY - 50.f, dir));
                                         }
                                     }
                                     else if (type == LaneType::Animal) {
@@ -1192,7 +1192,7 @@ void UIManager::update(float dt)
                                             if (rand() % 100 < 10) audio_.playAnimalSample(false); //false = cat
                                         }
                                         else {
-                                            Obstacles.push_back(new CDeer(spawnX, rowY, dir));
+                                            Obstacles.push_back(new CDeer(spawnX, rowY - 10, dir));
                                             // 3% chance for the deer to grunt when it spawns!
                                             if (rand() % 100 < 3) audio_.playAnimalSample(true); //true = deer
                                         }

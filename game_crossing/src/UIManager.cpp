@@ -101,9 +101,10 @@ const std::array<sf::FloatRect, 10> UIManager::kLevelButtonBounds = {
 };
 
 const std::array<sf::FloatRect, 2> UIManager::kGameModeButtonBounds = {
-    sf::FloatRect({ 516.f, 485.f }, { 410.f, 442.f }),
-    sf::FloatRect({1040.f, 488.f }, { 410.f, 440.f })
+    sf::FloatRect({ 500.f, 485.f }, { 385.f, 425.f }),
+    sf::FloatRect({1000.f, 485.f }, { 385.f, 425.f })
 };
+
 
 const std::array<std::string, 4> UIManager::kThemeNames = { "spring", "summer", "autumn", "winter" };
 const sf::FloatRect UIManager::kCharacterPanelBounds({141.f, 380.f}, {399.f, 399.f});
@@ -1022,7 +1023,7 @@ void UIManager::handleGameOver(const sf::Event& e)
                 ranks_.submit(r);
 
                 classicWon_ = false;
-                setState(UIState::LevelSelect);
+                setState(UIState::MainMenu);
                 return;
             }
 

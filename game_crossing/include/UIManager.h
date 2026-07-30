@@ -142,8 +142,9 @@ private:
     sf::Font   font_;
     sf::Text   debugText_;
     bool       fontLoaded_ = false;
-    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
+    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
+    sf::Font   rankingFont_;
     sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
     bool       assetsLoaded_ = false;
@@ -206,8 +207,6 @@ private:
 
     // Per-screen scratch state
     int  loadTabModeIdx_  = 0;     // 0 = Classic, 1 = Endless
-    int  rankTabModeIdx_  = 0;
-    int  rankScrollOffset_= 0;     // top-row index in Ranking viewport
     int  selectedSlotIdx_ = -1;    // for LoadGame delete confirmation
     bool e_isMouseOverBack = false;
 

@@ -117,6 +117,9 @@ UIManager::UIManager(sf::RenderWindow& window)
     if (!fontLoaded_)
         std::cerr << "[UIManager] failed to load a UI/debug font\n";
 
+    if (!rankingFont_.openFromFile("C:/Windows/Fonts/times.ttf"))
+        std::cerr << "[UIManager] failed to load Times New Roman for ranking text\n";
+
     debugText_.setCharacterSize(18);
     debugText_.setFillColor(sf::Color::Yellow);
     debugText_.setOutlineColor(sf::Color::Black);
@@ -141,14 +144,15 @@ UIManager::UIManager(sf::RenderWindow& window)
     // Cột 6 (index 5) và Hàng 9 đếm từ dưới lên (tâm của ô trên cùng)
     trafficLightSprite_.setPosition({ Grid::columnCenter(5), 0.f });
 
-    setTheme("winter");
-
     cfg_ = sets_.load();
     cfg_.volume = std::clamp(cfg_.volume, 0, 100);
     cfg_.musicVolume = std::clamp(cfg_.musicVolume, 0, 100);
     applyAudioVolumes();
     cfg_.cosmetic.characterId = std::clamp(cfg_.cosmetic.characterId, 1,
                                            CharacterRenderer::kCharacterCount);
+    cfg_.cosmetic.backgroundId = std::clamp(cfg_.cosmetic.backgroundId, 0,
+                                             static_cast<int>(kThemeNames.size()) - 1);
+    setTheme(kThemeNames.at(cfg_.cosmetic.backgroundId));
     ctx_.selectedCharacterID = cfg_.cosmetic.characterId;
     saves_.loadAll();
     ranks_.loadAll();
@@ -186,9 +190,14 @@ bool UIManager::setTheme(const std::string& seasonName)
         return false;
     };
 
-    sf::Texture newMain, newSetting, newGraphic, newBackButton, newSettingButton, newPause;
+    sf::Texture newMain, newSetting, newGraphic, newRanking, newBackButton, newSettingButton, newPause;
+    // Ranking artwork was specified under map/ using lowercase seasons.  The
+    // shipped artwork predates that layout, so retain the root-level fallback.
+    const bool rankingLoaded = load(newRanking, "map/Ranking", false) ||
+                               load(newRanking, "Ranking", false);
     if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
-        !load(newGraphic, "Graphic", false) || !load(newBackButton, "BackButton", false) ||
+        !load(newGraphic, "Graphic", false) || !rankingLoaded ||
+        !load(newBackButton, "BackButton", false) ||
         !load(newSettingButton, "SettingButton", false))
     {
         std::cerr << "[UIManager] failed to load theme '" << seasonName
@@ -199,6 +208,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     bgTex_ = std::move(newMain);
     settingBgTex_ = std::move(newSetting);
     graphicBgTex_ = std::move(newGraphic);
+    rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
     pauseAssetLoaded_ = load(newPause, "Pause", false);
@@ -255,6 +265,7 @@ bool UIManager::commitPreviewTheme()
     if (!setTheme(kThemeNames.at(previewThemeIndex_)))
         return false;
 
+    cfg_.cosmetic.backgroundId = previewThemeIndex_;
     sets_.save(cfg_);
     return true;
 }
@@ -317,8 +328,6 @@ void UIManager::handleEvents()
 
             if (key->code == sf::Keyboard::Key::F7)
             {
-                if (state_ == UIState::Graphic)
-                    commitGraphicPreview(); // Debug shortcut also confirms the current preview.
                 debugUi_ = !debugUi_;
                 std::cout << "[UI Debug] " << (debugUi_ ? "enabled" : "disabled") << '\n';
                 continue;
@@ -667,41 +676,9 @@ void UIManager::handleLoad(const sf::Event& e)
 
 void UIManager::handleRanking(const sf::Event& e)
 {
-    if (const auto* w = e.getIf<sf::Event::MouseWheelScrolled>())
-    {
-        rankScrollOffset_ += (w->delta > 0 ? -1 : 1);
-        return;
-    }
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape) { audio_.playUiClick(); handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); rankScrollOffset_ = std::max(0, rankScrollOffset_ - 1); return; }
-        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); rankScrollOffset_ += 1; return; }
-        if (k->code == sf::Keyboard::Key::PageUp) { audio_.playUiHover(); rankScrollOffset_ = std::max(0, rankScrollOffset_ - 5); return; }
-        if (k->code == sf::Keyboard::Key::PageDown) { audio_.playUiHover(); rankScrollOffset_ += 5; return; }
-        if (k->code == sf::Keyboard::Key::Tab) { audio_.playUiClick(); rankTabModeIdx_ = 1 - rankTabModeIdx_; rankScrollOffset_ = 0; rebuildButtons(); return; }
-    }
-    if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
-    {
-        if (mm->button == sf::Mouse::Button::Left)
-        {
-            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-            if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); return; }
-            if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); return; }
-        }
-    }
-    if (e.is<sf::Event::MouseMoved>())
-    {
-        const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) {
-                if (focusIdx_ != i) audio_.playUiHover();
-                focusIdx_ = i;
-            }
-        }
     }
 }
 
@@ -1033,14 +1010,6 @@ void UIManager::update(float dt)
     {
         bootTimer_ += dt;
         if (bootTimer_ >= BOOT_TIME) setState(UIState::MainMenu);
-    }
-
-    if (state_ == UIState::Ranking)
-    {
-        const GameMode m = (rankTabModeIdx_ == 0) ? GameMode::Classic : GameMode::Endless;
-        const auto rows = ranks_.all(m);
-        const int maxOffset = std::max(0, (int)rows.size() - RankingStore::kMaxVisible);
-        rankScrollOffset_ = std::clamp(rankScrollOffset_, 0, maxOffset);
     }
 
     // Resolve an already off-screen Endless player before advancing gameplay.
@@ -1516,7 +1485,7 @@ void UIManager::activateMainMenuButton(std::size_t index)
     case 1: loadTabModeIdx_ = 0; setState(UIState::LoadGame); break;      // Load
     case 2: setState(UIState::Graphic); break;                             // Graphic
     case 3: setState(UIState::Setting); break;                             // Setting
-    case 4: rankTabModeIdx_ = 0; rankScrollOffset_ = 0; setState(UIState::Ranking); break;
+    case 4: setState(UIState::Ranking); break;
     case 5: setState(UIState::Help); break;
     case 6: modal_ = Modal::ConfirmExit; break;
     default: break;
@@ -1575,7 +1544,7 @@ void UIManager::rebuildButtons()
         auto y = vstack(220, 7);
         add(y(0), { BTN_W, BTN_H }, "New Game", Button::Style::Primary, [this] { setState(UIState::ModeSelect); });
         add(y(1), { BTN_W, BTN_H }, "Load Game", Button::Style::Primary, [this] { loadTabModeIdx_ = 0; setState(UIState::LoadGame); });
-        add(y(2), { BTN_W, BTN_H }, "Ranking", Button::Style::Primary, [this] { rankTabModeIdx_ = 0; rankScrollOffset_ = 0; setState(UIState::Ranking); });
+        add(y(2), { BTN_W, BTN_H }, "Ranking", Button::Style::Primary, [this] { setState(UIState::Ranking); });
         add(y(3), { BTN_W, BTN_H }, "Setting", Button::Style::Primary, [this] { setState(UIState::Setting); });
         add(y(4), { BTN_W, BTN_H }, "Graphic", Button::Style::Primary, [this] { setState(UIState::Graphic); });
         add(y(5), { BTN_W, BTN_H }, "Help", Button::Style::Primary, [this] { setState(UIState::Help); });
@@ -1691,14 +1660,7 @@ void UIManager::rebuildButtons()
         break;
     }
 
-    case UIState::Ranking:
-    {
-        add({ 200, 150 }, { 200, 48 }, rankTabModeIdx_ == 0 ? "[X] Classic" : "[ ] Classic",
-            Button::Style::Subtle, [this] { rankTabModeIdx_ = 0; rankScrollOffset_ = 0; rebuildButtons(); });
-        add({ 420, 150 }, { 200, 48 }, rankTabModeIdx_ == 1 ? "[X] Endless" : "[ ] Endless",
-            Button::Style::Subtle, [this] { rankTabModeIdx_ = 1; rankScrollOffset_ = 0; rebuildButtons(); });
-        break;
-    }
+    case UIState::Ranking: break;
 
     case UIState::Help:
         break;
@@ -1740,6 +1702,7 @@ void UIManager::drawBackground()
         const sf::Texture* texture = &bgTex_;
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
+        else if (state_ == UIState::Ranking) texture = &rankingBgTex_;
 
         const sf::Vector2u windowSize = win_.getSize();
         const sf::Vector2u textureSize = texture->getSize();
@@ -2193,6 +2156,39 @@ void UIManager::renderLoad()
 
 void UIManager::renderRanking()
 {
+    constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
+    constexpr std::array<sf::Color, 6> debugColors = {
+        sf::Color::Red, sf::Color::Green, sf::Color::Blue,
+        sf::Color::Yellow, sf::Color::Magenta, sf::Color::Cyan
+    };
+    auto drawColumn = [&](GameMode mode, float x, int colorOffset) {
+        const std::vector<RunRecord> rows = ranks_.all(mode);
+        for (int place = 0; place < 3; ++place) {
+            const bool hasRecord = place < static_cast<int>(rows.size());
+            const std::string name = hasRecord ? rows[place].name : "---";
+            const std::string time = hasRecord ? std::to_string(rows[place].elapsedSec) + "s" : "--";
+            sf::Text entry(rankingFont_, name + "\nTimes: " + time, 22);
+            entry.setFillColor(sf::Color::White);
+            entry.setPosition({ x, rowY[place] });
+            win_.draw(entry);
+            if (debugUi_) {
+                const sf::FloatRect bounds = entry.getGlobalBounds();
+                sf::RectangleShape outline(bounds.size);
+                outline.setPosition(bounds.position);
+                outline.setFillColor(sf::Color::Transparent);
+                outline.setOutlineThickness(2.f);
+                outline.setOutlineColor(debugColors[colorOffset + place]);
+                win_.draw(outline);
+            }
+        }
+    };
+    drawColumn(GameMode::Classic, 350.f, 0);
+    drawColumn(GameMode::Endless, 758.f, 3);
+}
+
+#if 0 // Replaced by the fixed six-entry medal layout above.
+void UIManager::renderRanking_legacy()
+{
     const GameMode m = (rankTabModeIdx_ == 0) ? GameMode::Classic : GameMode::Endless;
     const std::string title = (m == GameMode::Classic) ? "RANKING  -  CLASSIC" : "RANKING  -  ENDLESS";
     drawCenteredText(title, 100, 36, sf::Color::White, true);
@@ -2263,6 +2259,7 @@ void UIManager::renderRanking()
 
     drawCenteredText("Wheel / Up-Down / PageUp-Down to scroll", 660, 18, sf::Color(180, 180, 180));
 }
+#endif
 
 void UIManager::renderHelp()
 {
@@ -2456,4 +2453,3 @@ void UIManager::renderPause()
     win_.draw(overlay);
     win_.setView(uiView_);
 }
-

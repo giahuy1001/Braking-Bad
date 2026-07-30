@@ -214,10 +214,8 @@ bool UIManager::setTheme(const std::string& seasonName)
     if (!loadScreenLoaded)
         std::cerr << "[UIManager] optional Load.png is missing for theme '"
                   << seasonName << "'; using the normal seasonal background.\n";
-    // Ranking artwork was specified under map/ using lowercase seasons.  The
-    // shipped artwork predates that layout, so retain the root-level fallback.
-    const bool rankingLoaded = load(newRanking, "map/Ranking", false) ||
-                               load(newRanking, "Ranking", false);
+    // Ranking artwork is supplied as assets/theme/<season>/Ranking.png.
+    const bool rankingLoaded = load(newRanking, "Ranking", false);
     if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
         !load(newGraphic, "Graphic", false) || !rankingLoaded ||
         !load(newBackButton, "BackButton", false) ||

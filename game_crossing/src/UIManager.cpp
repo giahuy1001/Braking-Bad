@@ -108,6 +108,18 @@ const sf::FloatRect UIManager::kSettingOkBounds     ({1504.f, 816.f}, {148.f, 10
 const sf::FloatRect UIManager::kGraphicOkThemeBounds ({1520.f, 801.f}, {155.f, 120.f});
 const sf::FloatRect UIManager::kGraphicCharacterOkBounds ({288.f, 814.f}, {155.f, 120.f});
 
+// Authored-image coordinates (1920x1080) for the six Load save-slot buttons:
+// Classic #1-#3, then Endless #1-#3.  Text positions intentionally remain
+// independent in renderLoad(), so these can be adjusted without moving text.
+const std::array<sf::FloatRect, 6> kLoadSlotClickBounds = {
+    sf::FloatRect({ 381.f, 416.f }, { 137.f, 115.f }),
+    sf::FloatRect({ 381.f, 606.f }, { 137.f, 115.f }),
+    sf::FloatRect({ 381.f, 800.f }, { 137.f, 115.f }),
+    sf::FloatRect({1004.f, 416.f }, { 137.f, 115.f }),
+    sf::FloatRect({1004.f, 606.f }, { 137.f, 115.f }),
+    sf::FloatRect({1004.f, 800.f }, { 137.f, 115.f })
+};
+
 
 //Constructor
 UIManager::UIManager(sf::RenderWindow& window)
@@ -658,14 +670,12 @@ void UIManager::handleLoad(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
-            constexpr std::array<float, 2> columnX = { 350.f, 758.f };
-            const sf::Vector2f point = toUiCoords(mm->position);
+            const sf::Vector2f point = toBaseCoords(mm->position);
             for (int column = 0; column < 2; ++column) {
                 const GameMode mode = column == 0 ? GameMode::Classic : GameMode::Endless;
                 const auto slots = saves_.slots(mode);
                 for (int place = 0; place < SaveStore::kMaxSlots; ++place) {
-                    const sf::FloatRect bounds({ columnX[column], rowY[place] }, { 240.f, 62.f });
+                    const sf::FloatRect& bounds = kLoadSlotClickBounds[column * SaveStore::kMaxSlots + place];
                     if (!bounds.contains(point) || slots[place].name.empty())
                         continue;
 
@@ -2200,7 +2210,13 @@ void UIManager::renderLoad()
             win_.draw(entry);
 
             if (debugUi_) {
-                const sf::FloatRect bounds({ x, rowY[place] }, { 240.f, 62.f });
+                const sf::FloatRect& baseBounds = kLoadSlotClickBounds[
+                    colorOffset + place];
+                const sf::FloatRect bounds(
+                    { baseBounds.position.x * UI_W / WINDOW_W,
+                      baseBounds.position.y * UI_H / WINDOW_H },
+                    { baseBounds.size.x * UI_W / WINDOW_W,
+                      baseBounds.size.y * UI_H / WINDOW_H });
                 sf::RectangleShape outline(bounds.size);
                 outline.setPosition(bounds.position);
                 outline.setFillColor(sf::Color::Transparent);

@@ -142,7 +142,7 @@ private:
     sf::Font   font_;
     sf::Text   debugText_;
     bool       fontLoaded_ = false;
-    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
+    sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
     sf::Font   rankingFont_;
     sf::Texture pauseFrameTex_;

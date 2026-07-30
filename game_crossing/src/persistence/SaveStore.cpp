@@ -33,6 +33,9 @@ SaveStore::slots(GameMode m) const
     int   c = (m == GameMode::Classic) ? classicCount_ : endlessCount_;
     std::array<RunRecord, kMaxSlots> out{};
     for (int i = 0; i < c; ++i) out[i] = a[i];
+    std::sort(out.begin(), out.begin() + c, [](const RunRecord& lhs, const RunRecord& rhs) {
+        return lhs.savedAtUnix > rhs.savedAtUnix;
+    });
     return out;
 }
 

@@ -11,6 +11,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <ctime>
 #include <functional>
 #include <iostream>
 #include <limits>
@@ -57,6 +58,23 @@ namespace
     {
         return std::chrono::duration_cast<std::chrono::seconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
+    std::string formatSaveTime(const RunRecord& record)
+    {
+        std::string result = std::to_string(record.elapsedSec) + "s";
+        if (record.savedAtUnix <= 0)
+            return result;
+
+        const std::time_t timestamp = static_cast<std::time_t>(record.savedAtUnix);
+        std::tm localTime{};
+        if (localtime_s(&localTime, &timestamp) != 0)
+            return result;
+
+        char text[20]{};
+        if (std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &localTime) != 0)
+            result += " / " + std::string(text);
+        return result;
     }
 }
 
@@ -190,7 +208,12 @@ bool UIManager::setTheme(const std::string& seasonName)
         return false;
     };
 
-    sf::Texture newMain, newSetting, newGraphic, newRanking, newBackButton, newSettingButton, newPause;
+    sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
+    // Load artwork is supplied as assets/theme/<season>/Load.png.
+    const bool loadScreenLoaded = load(newLoad, "Load", false);
+    if (!loadScreenLoaded)
+        std::cerr << "[UIManager] optional Load.png is missing for theme '"
+                  << seasonName << "'; using the normal seasonal background.\n";
     // Ranking artwork was specified under map/ using lowercase seasons.  The
     // shipped artwork predates that layout, so retain the root-level fallback.
     const bool rankingLoaded = load(newRanking, "map/Ranking", false) ||
@@ -208,6 +231,9 @@ bool UIManager::setTheme(const std::string& seasonName)
     bgTex_ = std::move(newMain);
     settingBgTex_ = std::move(newSetting);
     graphicBgTex_ = std::move(newGraphic);
+    // Clear a previous season's Load texture when the newly selected season
+    // has not supplied one, so stale artwork is never shown.
+    loadBgTex_ = std::move(newLoad);
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
@@ -628,47 +654,37 @@ void UIManager::handleLoad(const sf::Event& e)
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape || k->code == sf::Keyboard::Key::Backspace) { audio_.playUiClick(); handleBack(); return; }
-        if (k->code == sf::Keyboard::Key::Enter) { audio_.playUiClick(); activateFocused(); return; }
-        if (k->code == sf::Keyboard::Key::Up) { audio_.playUiHover(); moveFocus(-3); return; }
-        if (k->code == sf::Keyboard::Key::Down) { audio_.playUiHover(); moveFocus(+3); return; }
-        if (k->code == sf::Keyboard::Key::Left) { audio_.playUiHover(); moveFocus(-1); return; }
-        if (k->code == sf::Keyboard::Key::Right) { audio_.playUiHover(); moveFocus(+1); return; }
-        if (k->code == sf::Keyboard::Key::Tab) { audio_.playUiClick(); loadTabModeIdx_ = 1 - loadTabModeIdx_; rebuildButtons(); return; }
-        if (k->code == sf::Keyboard::Key::Delete)
-        {
-            const int idx = focusIdx_;
-            if (idx >= 0 && idx < (int)SaveStore::kMaxSlots)
-            {
-                audio_.playUiClick();
-                saves_.clear(idx, loadTabModeIdx_ == 0 ? GameMode::Classic : GameMode::Endless);
-                rebuildButtons();
-            }
-            return;
-        }
     }
     if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>())
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-            if (!btns_.empty() && btns_[0].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 0; rebuildButtons(); return; }
-            if (btns_.size() > 1 && btns_[1].contains(mp)) { audio_.playUiClick(); loadTabModeIdx_ = 1; rebuildButtons(); return; }
-            for (size_t i = 2; i < btns_.size(); ++i)
-            {
-                if (btns_[i].consumeClick(mp)) { audio_.playUiClick(); focusIdx_ = (int)i; activateFocused(); return; }
-            }
-        }
-    }
-    if (e.is<sf::Event::MouseMoved>())
-    {
-        const auto* mm = e.getIf<sf::Event::MouseMoved>();
-        sf::Vector2f mp(static_cast<float>(mm->position.x), static_cast<float>(mm->position.y));
-        for (int i = 0; i < (int)btns_.size(); ++i)
-        {
-            btns_[i].update(mp);
-            if (btns_[i].contains(mp)) {
-                if (focusIdx_ != i) audio_.playUiHover();
-                focusIdx_ = i;
+            constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
+            constexpr std::array<float, 2> columnX = { 350.f, 758.f };
+            const sf::Vector2f point = toUiCoords(mm->position);
+            for (int column = 0; column < 2; ++column) {
+                const GameMode mode = column == 0 ? GameMode::Classic : GameMode::Endless;
+                const auto slots = saves_.slots(mode);
+                for (int place = 0; place < SaveStore::kMaxSlots; ++place) {
+                    const sf::FloatRect bounds({ columnX[column], rowY[place] }, { 240.f, 62.f });
+                    if (!bounds.contains(point) || slots[place].name.empty())
+                        continue;
+
+                    const RunRecord& save = slots[place];
+                    audio_.playUiClick();
+                    ctx_.pendingName = save.name;
+                    ctx_.level = save.level;
+                    ctx_.classicLevel = save.level;
+                    ctx_.classicSec = save.elapsedSec;
+                    ctx_.mode = mode == GameMode::Endless ? StateContext::Mode::Endless : StateContext::Mode::Classic;
+                    setState(mode == GameMode::Endless ? UIState::EndlessPlay : UIState::ClassicPlay);
+                    player_.setPosition({ save.playerX, save.playerY });
+                    player_.revive();
+                    cameraY_ = save.cameraY;
+                    player_.setCameraOffset(cameraY_);
+                    elapsedPlaySec_ = static_cast<float>(save.elapsedSec);
+                    return;
+                }
             }
         }
     }
@@ -1702,6 +1718,7 @@ void UIManager::drawBackground()
         const sf::Texture* texture = &bgTex_;
         if (state_ == UIState::Setting) texture = &settingBgTex_;
         else if (state_ == UIState::Graphic) texture = &graphicBgTex_;
+        else if (state_ == UIState::LoadGame && loadBgTex_.getSize().x != 0) texture = &loadBgTex_;
         else if (state_ == UIState::Ranking) texture = &rankingBgTex_;
 
         const sf::Vector2u windowSize = win_.getSize();
@@ -2149,9 +2166,37 @@ void UIManager::renderGraphic()
 
 void UIManager::renderLoad()
 {
-    drawCenteredText("LOAD GAME", 100, 40, sf::Color::White, true);
-    drawCenteredText("Tab to switch  |  Del to remove  |  Click to load", 200, 18, sf::Color(200, 200, 200));
-    for (auto& b : btns_) b.draw(win_, font_);
+    constexpr std::array<float, 3> rowY = { 286.f, 410.f, 536.f };
+    constexpr std::array<sf::Color, 6> debugColors = {
+        sf::Color::Red, sf::Color::Green, sf::Color::Blue,
+        sf::Color::Yellow, sf::Color::Magenta, sf::Color::Cyan
+    };
+
+    auto drawColumn = [&](GameMode mode, float x, int colorOffset) {
+        const auto slots = saves_.slots(mode); // SaveStore returns newest first.
+        for (int place = 0; place < SaveStore::kMaxSlots; ++place) {
+            const bool hasSave = !slots[place].name.empty();
+            const std::string name = hasSave ? slots[place].name : "---";
+            const std::string time = hasSave ? formatSaveTime(slots[place]) : "--";
+            sf::Text entry(rankingFont_, name + "\nTimes: " + time, 20);
+            entry.setFillColor(sf::Color::White);
+            entry.setPosition({ x, rowY[place] });
+            win_.draw(entry);
+
+            if (debugUi_) {
+                const sf::FloatRect bounds({ x, rowY[place] }, { 240.f, 62.f });
+                sf::RectangleShape outline(bounds.size);
+                outline.setPosition(bounds.position);
+                outline.setFillColor(sf::Color::Transparent);
+                outline.setOutlineThickness(2.f);
+                outline.setOutlineColor(debugColors[colorOffset + place]);
+                win_.draw(outline);
+            }
+        }
+    };
+
+    drawColumn(GameMode::Classic, 350.f, 0);
+    drawColumn(GameMode::Endless, 758.f, 3);
 }
 
 void UIManager::renderRanking()

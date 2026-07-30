@@ -1215,9 +1215,7 @@ void UIManager::update(float dt)
                     }
                 }
             }
-            // -----------------------------------------------------------------------
 
-           // --- 5. COLLISION DETECTION ---
             // TÌM XEM CÓ NHẶT KHIÊN KHÔNG
             const sf::Vector2f playerPos = player_.getPosition();
             const int pCol = static_cast<int>(std::floor((playerPos.x - Grid::GRID_LEFT) / Grid::CELL_SIZE));
@@ -1244,31 +1242,50 @@ void UIManager::update(float dt)
             else checkShieldPickup(classicMap_.getMutableBlocks());
 
             // --- 5. COLLISION DETECTION ---
-            bool hit = false;
+            // --- 5. COLLISION DETECTION ---
+            CGameObject* hitObstacle = nullptr; // Remember WHAT we hit
+
             for (auto obs : Obstacles) {
                 if (CVehicle* v = dynamic_cast<CVehicle*>(obs)) {
-                    if (player_.isImpact(v)) { hit = true; break; }
+                    if (player_.isImpact(v)) { hitObstacle = obs; break; }
                 }
                 else if (CAnimal* a = dynamic_cast<CAnimal*>(obs)) {
-                    if (player_.isImpact(a)) { hit = true; break; }
+                    if (player_.isImpact(a)) { hitObstacle = obs; break; }
                 }
             }
 
-            if (hit) {
+            if (hitObstacle) {
                 if (player_.isInvincible()) {
                     // Không làm gì cả vì đang nhấp nháy bất tử
                 }
-                else if (player_.hasShield()) {
-                    player_.consumeShield(); // Mất khiên, bắt đầu bất tử 1s
-                    audio_.playUiCrash();
-                }
                 else {
-                    player_.kill();
-                    audio_.playUiCrash();
-                    audio_.pauseVehicleAmbience();
-                    if (state_ == UIState::ClassicPlay) ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
-                    else ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
-                    setState(UIState::GameOver);
+                    // 1. Play the correct sound based on the obstacle type
+                    if (dynamic_cast<CCat*>(hitObstacle)) {
+                        audio_.playAnimalSample(false); // Meow
+                    }
+                    else if (dynamic_cast<CDeer*>(hitObstacle)) {
+                        audio_.playAnimalSample(true);  // Deer grunt
+                    }
+                    else {
+                        audio_.playUiCrash();           // Vehicle metal crunch
+                    }
+
+                    // 2. Handle Shield or Death logic
+                    if (player_.hasShield()) {
+                        player_.consumeShield(); // Mất khiên, bắt đầu bất tử 1s
+                    }
+                    else {
+                        player_.kill();
+                        audio_.pauseVehicleAmbience();
+
+                        if (state_ == UIState::ClassicPlay) {
+                            ctx_.classicSec = static_cast<int>(elapsedPlaySec_);
+                        }
+                        else {
+                            ctx_.endlessSec = static_cast<int>(elapsedPlaySec_);
+                        }
+                        setState(UIState::GameOver);
+                    }
                 }
             }
         }

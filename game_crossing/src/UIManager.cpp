@@ -222,6 +222,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     };
 
     sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
+    sf::Texture newScoreTable, newSave, newQuit;
     // Load artwork is supplied as assets/theme/<season>/Load.png.
     const bool loadScreenLoaded = load(newLoad, "Load", false);
     if (!loadScreenLoaded)
@@ -248,6 +249,25 @@ bool UIManager::setTheme(const std::string& seasonName)
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
+    // Gameplay artwork is cached with the rest of the theme.  It is never
+    // loaded from renderPlay() or an event handler.
+    scoreTableAssetLoaded_ = load(newScoreTable, "ScoreTable", false);
+    if (scoreTableAssetLoaded_)
+        scoreTableTex_ = std::move(newScoreTable);
+    else
+        std::cerr << "[UIManager] missing ScoreTable.png for theme '" << seasonName << "'\n";
+
+    saveAssetLoaded_ = load(newSave, "Save", false);
+    if (saveAssetLoaded_)
+        saveTex_ = std::move(newSave);
+    else
+        std::cerr << "[UIManager] optional Save.png is missing for theme '" << seasonName << "'\n";
+
+    quitAssetLoaded_ = load(newQuit, "Quit", false);
+    if (quitAssetLoaded_)
+        quitTex_ = std::move(newQuit);
+    else
+        std::cerr << "[UIManager] optional Quit.png is missing for theme '" << seasonName << "'\n";
     pauseAssetLoaded_ = load(newPause, "Pause", false);
     if (pauseAssetLoaded_)
         pauseTex_ = std::move(newPause);
@@ -720,6 +740,30 @@ void UIManager::handleHelp(const sf::Event& e)
 
 void UIManager::handlePlay(const sf::Event& e)
 {
+    if (const auto* mm = e.getIf<sf::Event::MouseButtonPressed>();
+        mm && mm->button == sf::Mouse::Button::Left)
+    {
+        const sf::Vector2f mouse(static_cast<float>(mm->position.x),
+                                 static_cast<float>(mm->position.y));
+        if (sidebarPauseBounds().contains(mouse)) {
+            audio_.playUiClick();
+            setState(UIState::Pause);
+            return;
+        }
+        if (sidebarSaveBounds().contains(mouse)) {
+            audio_.playUiClick();
+            modalFocus_ = 0;
+            modal_ = Modal::SaveGame;
+            return;
+        }
+        if (sidebarQuitBounds().contains(mouse)) {
+            audio_.playUiClick();
+            modalFocus_ = 0;
+            modal_ = Modal::QuitGame;
+            return;
+        }
+    }
+
     if (const auto* k = e.getIf<sf::Event::KeyPressed>())
     {
         if (k->code == sf::Keyboard::Key::Escape) { handleBack(); return; }
@@ -881,6 +925,12 @@ void UIManager::handlePause(const sf::Event& e)
 
 void UIManager::savePausedRunAndExit()
 {
+    saveCurrentRun();
+    setState(UIState::MainMenu);
+}
+
+void UIManager::saveCurrentRun()
+{
     RunRecord record;
     record.name = ctx_.pendingName;
     record.mode = ctx_.mode == StateContext::Mode::Classic ? GameMode::Classic : GameMode::Endless;
@@ -892,7 +942,6 @@ void UIManager::savePausedRunAndExit()
     record.playerY = player_.getPosition().y;
     record.cameraY = cameraY_;
     saves_.push(record);
-    setState(UIState::MainMenu);
 }
 
 sf::FloatRect UIManager::pauseOverlayBounds() const
@@ -943,8 +992,16 @@ void UIManager::handleModal(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Enter)
         {
             audio_.playUiClick();
-            if (modalFocus_ == 0) win_.close();
-            else                  modal_ = Modal::None;
+            if (modalFocus_ != 0) { modal_ = Modal::None; return; }
+            if (modal_ == Modal::ConfirmExit) win_.close();
+            else if (modal_ == Modal::SaveGame) {
+                saveCurrentRun();
+                modal_ = Modal::None;
+                setState(UIState::MainMenu);
+            } else if (modal_ == Modal::QuitGame) {
+                modal_ = Modal::None;
+                setState(UIState::MainMenu);
+            }
             return;
         }
     }
@@ -952,13 +1009,78 @@ void UIManager::handleModal(const sf::Event& e)
     {
         if (mm->button == sf::Mouse::Button::Left)
         {
-            sf::Vector2f mp = toUiCoords(mm->position);
-            sf::FloatRect yes({ UI_W / 2.f - 160, UI_H / 2.f + 20 }, { 140, 50 });
-            sf::FloatRect no({ UI_W / 2.f + 20, UI_H / 2.f + 20 }, { 140, 50 });
-            if (yes.contains(mp)) { audio_.playUiClick(); win_.close(); }
-            if (no.contains(mp)) { audio_.playUiClick(); modal_ = Modal::None; }
+            if (modal_ == Modal::ConfirmExit) {
+                const sf::Vector2f mp = toUiCoords(mm->position);
+                const sf::FloatRect yes({ UI_W / 2.f - 160, UI_H / 2.f + 20 }, { 140, 50 });
+                const sf::FloatRect no({ UI_W / 2.f + 20, UI_H / 2.f + 20 }, { 140, 50 });
+                if (yes.contains(mp)) { audio_.playUiClick(); win_.close(); }
+                if (no.contains(mp)) { audio_.playUiClick(); modal_ = Modal::None; }
+                return;
+            }
+
+            const sf::Vector2f mp(static_cast<float>(mm->position.x),
+                                  static_cast<float>(mm->position.y));
+            if (confirmationNoBounds().contains(mp)) { audio_.playUiClick(); modal_ = Modal::None; }
+            if (confirmationYesBounds().contains(mp)) {
+                audio_.playUiClick();
+                if (modal_ == Modal::SaveGame) saveCurrentRun();
+                modal_ = Modal::None;
+                setState(UIState::MainMenu);
+            }
         }
     }
+}
+
+sf::FloatRect UIManager::sidebarPauseBounds() const
+{
+    // ScoreTable.png is authored at 551x1012 and fills the 600x1080 sidebar.
+    constexpr float textureWidth = 551.f;
+    constexpr float textureHeight = 1012.f;
+    const float sx = Grid::SIDEBAR_WIDTH / textureWidth;
+    const float sy = Grid::MAP_HEIGHT / textureHeight;
+    return { { Grid::MAP_WIDTH + 132.f * sx, 559.f * sy }, { 317.f * sx, 128.f * sy } };
+}
+
+sf::FloatRect UIManager::sidebarSaveBounds() const
+{
+    constexpr float textureWidth = 551.f;
+    constexpr float textureHeight = 1012.f;
+    const float sx = Grid::SIDEBAR_WIDTH / textureWidth;
+    const float sy = Grid::MAP_HEIGHT / textureHeight;
+    return { { Grid::MAP_WIDTH + 132.f * sx, 720.f * sy }, { 317.f * sx, 128.f * sy } };
+}
+
+sf::FloatRect UIManager::sidebarQuitBounds() const
+{
+    constexpr float textureWidth = 551.f;
+    constexpr float textureHeight = 1012.f;
+    const float sx = Grid::SIDEBAR_WIDTH / textureWidth;
+    const float sy = Grid::MAP_HEIGHT / textureHeight;
+    return { { Grid::MAP_WIDTH + 132.f * sx, 884.f * sy }, { 317.f * sx, 128.f * sy } };
+}
+
+sf::FloatRect UIManager::confirmationPopupBounds() const
+{
+    // Keep the complete themed prompt visible on every normal game window.
+    // Yes/No bounds below are normalized to this rectangle for either image.
+    const sf::Vector2u windowSize = win_.getSize();
+    const float width = std::min(720.f, static_cast<float>(windowSize.x) * .72f);
+    const float height = std::min(500.f, static_cast<float>(windowSize.y) * .72f);
+    return { { (windowSize.x - width) * .5f, (windowSize.y - height) * .5f }, { width, height } };
+}
+
+sf::FloatRect UIManager::confirmationYesBounds() const
+{
+    const sf::FloatRect popup = confirmationPopupBounds();
+    return { { popup.position.x + popup.size.x * .15f, popup.position.y + popup.size.y * .68f },
+             { popup.size.x * .30f, popup.size.y * .19f } };
+}
+
+sf::FloatRect UIManager::confirmationNoBounds() const
+{
+    const sf::FloatRect popup = confirmationPopupBounds();
+    return { { popup.position.x + popup.size.x * .55f, popup.position.y + popup.size.y * .68f },
+             { popup.size.x * .30f, popup.size.y * .19f } };
 }
 
 // ---------------------------------------------------------------------
@@ -1915,6 +2037,36 @@ void UIManager::drawActiveDebugHitboxes()
             win_.draw(shape);
         }
     }
+
+    if (state_ == UIState::ClassicPlay || state_ == UIState::EndlessPlay)
+        drawGameplaySidebarHitboxes();
+
+    if (modal_ == Modal::SaveGame || modal_ == Modal::QuitGame) {
+        const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+        const sf::Vector2f point(mouse.x, mouse.y);
+        for (const sf::FloatRect& bounds : { confirmationYesBounds(), confirmationNoBounds() }) {
+            sf::RectangleShape shape(bounds.size);
+            shape.setPosition(bounds.position);
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineThickness(2.f);
+            shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+            win_.draw(shape);
+        }
+    }
+}
+
+void UIManager::drawGameplaySidebarHitboxes()
+{
+    const sf::Vector2i mouse = sf::Mouse::getPosition(win_);
+    const sf::Vector2f point(mouse.x, mouse.y);
+    for (const sf::FloatRect& bounds : { sidebarPauseBounds(), sidebarSaveBounds(), sidebarQuitBounds() }) {
+        sf::RectangleShape shape(bounds.size);
+        shape.setPosition(bounds.position);
+        shape.setFillColor(sf::Color::Transparent);
+        shape.setOutlineThickness(2.f);
+        shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+        win_.draw(shape);
+    }
 }
 
 void UIManager::drawBackIcon()
@@ -1948,7 +2100,31 @@ void UIManager::drawBackIcon()
 
 void UIManager::drawModalOverlay()
 {
-    if (modal_ != Modal::ConfirmExit) return;
+    if (modal_ == Modal::None) return;
+
+    if (modal_ == Modal::SaveGame || modal_ == Modal::QuitGame)
+    {
+        win_.setView(win_.getDefaultView());
+        const sf::Vector2u windowSize = win_.getSize();
+        sf::RectangleShape dim({ static_cast<float>(windowSize.x), static_cast<float>(windowSize.y) });
+        dim.setFillColor(sf::Color(0, 0, 0, 160));
+        win_.draw(dim);
+
+        const sf::Texture& texture = modal_ == Modal::SaveGame ? saveTex_ : quitTex_;
+        const bool textureLoaded = modal_ == Modal::SaveGame ? saveAssetLoaded_ : quitAssetLoaded_;
+        const sf::FloatRect popup = confirmationPopupBounds();
+        if (textureLoaded && texture.getSize().x != 0 && texture.getSize().y != 0) {
+            sf::Sprite prompt(texture);
+            prompt.setScale({ popup.size.x / texture.getSize().x,
+                              popup.size.y / texture.getSize().y });
+            prompt.setPosition(popup.position);
+            win_.draw(prompt);
+        }
+        win_.setView(uiView_);
+        return;
+    }
+
+    // Existing main-menu exit prompt remains unchanged.
     sf::RectangleShape dim({ UI_W, UI_H });
     dim.setFillColor(sf::Color(0, 0, 0, 160));
     win_.draw(dim);
@@ -2040,8 +2216,9 @@ void UIManager::render()
 
     if (!gameplay) {
         drawBackIcon();
-        drawModalOverlay();
     }
+    if (modal_ != Modal::None)
+        drawModalOverlay();
 
     // The transparent menu hitboxes need only a hover layer. Draw it after
     // the menu image, but before debug information.
@@ -2422,37 +2599,32 @@ void UIManager::renderPlay()
     }
     // ----------------------------
 
-    // Dedicated, 600px gameplay sidebar.
-    sf::RectangleShape sidebar({ Grid::SIDEBAR_WIDTH, Grid::MAP_HEIGHT });
-    sidebar.setPosition({ Grid::MAP_WIDTH, 0.f });
-    sidebar.setFillColor(sf::Color(26, 31, 40));
-    win_.draw(sidebar);
-
-    sf::RectangleShape divider({ 4.f, Grid::MAP_HEIGHT });
-    divider.setPosition({ Grid::MAP_WIDTH - 2.f, 0.f });
-    divider.setFillColor(colorFromHex(0xE8B44F));
-    win_.draw(divider);
+    // ScoreTable is a seasonal, preloaded texture. Stretch it only to the
+    // documented gameplay sidebar (600x1080), never reload it per frame.
+    if (scoreTableAssetLoaded_ && scoreTableTex_.getSize().x != 0 && scoreTableTex_.getSize().y != 0) {
+        sf::Sprite sidebar(scoreTableTex_);
+        sidebar.setScale({ Grid::SIDEBAR_WIDTH / scoreTableTex_.getSize().x,
+                           Grid::MAP_HEIGHT / scoreTableTex_.getSize().y });
+        sidebar.setPosition({ Grid::MAP_WIDTH, 0.f });
+        win_.draw(sidebar);
+    }
 
     const int wholeSeconds = static_cast<int>(elapsedPlaySec_);
     const int minutes = wholeSeconds / 60;
     const int seconds = wholeSeconds % 60;
-    const std::string timer = "TIME  " + std::to_string(minutes / 10) +
+    const std::string timer = std::to_string(minutes / 10) +
         std::to_string(minutes % 10) + ":" +
         std::to_string(seconds / 10) + std::to_string(seconds % 10);
-    sf::Text timerText(font_, timer, 48);
-    timerText.setFillColor(sf::Color::Black);
-    timerText.setPosition({ Grid::MAP_WIDTH + 72.f, 110.f });
+    // 551x1012 ScoreTable authoring coordinates: directly below its TIME:
+    // label. Centering the variable-width string keeps all values aligned.
+    const float scoreScaleY = Grid::MAP_HEIGHT / 1012.f;
+    sf::Text timerText(font_, timer, static_cast<unsigned int>(48.f * scoreScaleY));
+    timerText.setFillColor(sf::Color::White);
+    const sf::FloatRect timerBounds = timerText.getLocalBounds();
+    timerText.setPosition({ Grid::MAP_WIDTH + Grid::SIDEBAR_WIDTH * .5f -
+                            (timerBounds.position.x + timerBounds.size.x * .5f),
+                            285.f * scoreScaleY - timerBounds.position.y });
     win_.draw(timerText);
-
-    sf::Text pauseText(font_, "ESC to Pause", 30);
-    pauseText.setFillColor(sf::Color::Black);
-    pauseText.setPosition({ Grid::MAP_WIDTH + 72.f, 205.f });
-    win_.draw(pauseText);
-
-    sf::Text movementText(font_, gameplayStarted_ ? "Arrow keys: move" : "Press an arrow key to start", 24);
-    movementText.setFillColor(sf::Color::Black);
-    movementText.setPosition({ Grid::MAP_WIDTH + 72.f, 265.f });
-    win_.draw(movementText);
 
     // 1. Vẽ khiên rơi trên đường
     auto drawShields = [&](const auto& mapBlocks) {

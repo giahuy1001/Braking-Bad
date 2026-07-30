@@ -46,5 +46,7 @@ struct StateContext
 enum class Modal : unsigned char
 {
     None = 0,
-    ConfirmExit
+    ConfirmExit,
+    SaveGame,
+    QuitGame
 };

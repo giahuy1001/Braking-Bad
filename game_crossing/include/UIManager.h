@@ -84,6 +84,7 @@ private:
     void drawDebugAudioMixer();
     void drawBackIcon();
     void drawModalOverlay();
+    void drawGameplaySidebarHitboxes();
     void drawCenteredText(const std::string& s, float y,
                           unsigned int size = 28,
                           sf::Color color = sf::Color::White,
@@ -135,6 +136,13 @@ private:
     sf::FloatRect pauseResumeBounds() const;
     sf::FloatRect pauseOutBounds() const;
     bool handleDebugAudioMixerKey(const sf::Event::KeyPressed& key);
+    sf::FloatRect sidebarPauseBounds() const;
+    sf::FloatRect sidebarSaveBounds() const;
+    sf::FloatRect sidebarQuitBounds() const;
+    sf::FloatRect confirmationPopupBounds() const;
+    sf::FloatRect confirmationYesBounds() const;
+    sf::FloatRect confirmationNoBounds() const;
+    void saveCurrentRun();
 
     // Members
     sf::RenderWindow& win_;
@@ -144,11 +152,15 @@ private:
     bool       fontLoaded_ = false;
     sf::Texture bgTex_, settingBgTex_, graphicBgTex_, loadBgTex_, rankingBgTex_, iconThemeTex_, pauseTex_, backButtonTex_,
                 settingButtonTex_, logoTex_, iconsTex_;
+    sf::Texture scoreTableTex_, saveTex_, quitTex_;
     sf::Font   rankingFont_;
     sf::Texture pauseFrameTex_;
     MapBackground mapBackground_;
     bool       assetsLoaded_ = false;
     bool       pauseAssetLoaded_ = false;
+    bool       scoreTableAssetLoaded_ = false;
+    bool       saveAssetLoaded_ = false;
+    bool       quitAssetLoaded_ = false;
     bool       pauseFrameValid_ = false;
     std::string currentTheme_ = "winter";
     bool       debugUi_ = false;

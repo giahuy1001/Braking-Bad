@@ -16,7 +16,9 @@ static sf::Texture& getDeerTexture(direction dir) {
 
 // Larger bounding box for the deer and a slightly higher base speed
 CDeer::CDeer(float startX, float startY, direction dir)
-    : CAnimal(startX, startY, 60.0f, 60.0f, 150.0f, dir), leapCycle(0.0f) {
+    : CAnimal(startX, startY, 60.0f, 60.0f, 150.0f, dir), leapCycle(0.0f)
+    //x, y, width, height, speed, direction, leapCycle
+{
 
     sf::Texture& tex = getDeerTexture(dir);
     sprite = new sf::Sprite(tex);

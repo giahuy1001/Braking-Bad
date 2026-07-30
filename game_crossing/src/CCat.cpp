@@ -15,7 +15,9 @@ static sf::Texture& getCatTexture(direction dir) {
 
 // Standard bounding box and moderate base speed
 CCat::CCat(float startX, float startY, direction dir)
-    : CAnimal(startX, startY, 40.0f, 40.0f, 150.0f, dir), burstTimer(0.0f), isBursting(false) {
+    : CAnimal(startX, startY, 40.0f, 40.0f, 150.0f, dir), burstTimer(0.0f), isBursting(false) 
+    //x, y, width, height, speed, direction, burst timer, isBursting
+{
 
     sf::Texture& tex = getCatTexture(dir);
     sprite = new sf::Sprite(tex);

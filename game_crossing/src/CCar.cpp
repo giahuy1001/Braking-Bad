@@ -14,7 +14,9 @@ static sf::Texture& getCarTexture(direction dir) {
 }
 
 CCar::CCar(float startX, float startY, direction dir)
-    : CVehicle(startX, startY, 80.0f, 50.0f, 350.0f, dir) {
+    : CVehicle(startX, startY, 80.0f, 50.0f, 350.0f, dir)
+    //x, y, width, height, speed, direction
+{
 
     sf::Texture& tex = getCarTexture(dir);
     sprite = new sf::Sprite(tex);

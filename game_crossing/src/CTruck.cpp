@@ -14,7 +14,9 @@ static sf::Texture& getTruckTexture(direction dir) {
 
 // Implements a larger bounding box (160x60) and slower velocity (6.0f)
 CTruck::CTruck(float startX, float startY, direction dir)
-    : CVehicle(startX, startY, 160.0f, 60.0f, 400.0f, dir) {
+    : CVehicle(startX, startY, 160.0f, 60.0f, 400.0f, dir) 
+    //x, y, width, height, speed, direction
+{
 
     sf::Texture& tex = getTruckTexture(dir);
     sprite = new sf::Sprite(tex);

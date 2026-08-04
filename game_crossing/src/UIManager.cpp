@@ -19,6 +19,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <sstream>
 
 namespace
 {
@@ -48,6 +49,9 @@ namespace
     constexpr float         PLAYER_SCREEN_ANCHOR = Grid::MAP_HEIGHT * 0.65f;
     constexpr float         PLAYER_TOP_SAFE_LINE = 180.f;
     constexpr float         ENDLESS_CATCHUP_DISTANCE = Grid::CELL_SIZE * 5.f;
+    constexpr sf::FloatRect INSTRUCTION_TEXT_LOCAL_BOUNDS({ 150.f, 215.f }, { 880.f, 520.f });
+    constexpr float         INSTRUCTION_TEXT_PADDING = 14.f;
+    constexpr float         INSTRUCTION_SCROLL_STEP = 48.f;
 
     sf::Color colorFromHex(unsigned int rgb)
     {
@@ -77,6 +81,29 @@ namespace
         if (std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &localTime) != 0)
             result += " / " + std::string(text);
         return result;
+    }
+
+    std::vector<std::string> wrapInstructionText(const sf::Font& font, const std::string& text,
+                                                  unsigned int characterSize, float maxWidth)
+    {
+        if (text.empty()) return { "" };
+
+        std::istringstream words(text);
+        std::vector<std::string> lines;
+        std::string word;
+        std::string line;
+        while (words >> word) {
+            const std::string candidate = line.empty() ? word : line + " " + word;
+            if (!line.empty() && sf::Text(font, candidate, characterSize).getLocalBounds().size.x > maxWidth) {
+                lines.push_back(line);
+                line = word;
+            }
+            else {
+                line = candidate;
+            }
+        }
+        if (!line.empty()) lines.push_back(line);
+        return lines;
     }
 }
 
@@ -242,7 +269,7 @@ bool UIManager::setTheme(const std::string& seasonName)
         return false;
     };
 
-    sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause;
+    sf::Texture newMain, newSetting, newGraphic, newLoad, newRanking, newBackButton, newSettingButton, newPause, newInstruction;
     sf::Texture newScoreTable, newSave, newQuit, newLevel, newUserName, newGameMode, newWin, newLose, newIconTheme;
 
     const bool loadScreenLoaded = load(newLoad, "Load", false);
@@ -254,7 +281,7 @@ bool UIManager::setTheme(const std::string& seasonName)
     if (!load(newMain, "MainMenu", true) || !load(newSetting, "Setting", false) ||
         !load(newGraphic, "Graphic", false) || !rankingLoaded ||
         !load(newBackButton, "BackButton", false) ||
-        !load(newSettingButton, "SettingButton", false))
+        !load(newSettingButton, "SettingButton", false) || !load(newInstruction, "Instruction", false))
     {
         std::cerr << "[UIManager] failed to load theme '" << seasonName
                   << "' from assets/theme/<season>/\n";
@@ -269,6 +296,8 @@ bool UIManager::setTheme(const std::string& seasonName)
     rankingBgTex_ = std::move(newRanking);
     backButtonTex_ = std::move(newBackButton);
     settingButtonTex_ = std::move(newSettingButton);
+    instructionTex_ = std::move(newInstruction);
+    instructionAssetLoaded_ = true;
     // The active season's icon is shared by Graphic preview and Level cards.
     if (load(newIconTheme, "IconTheme", false))
         iconThemeTex_ = std::move(newIconTheme);
@@ -938,7 +967,14 @@ void UIManager::handleHelp(const sf::Event& e)
         if (k->code == sf::Keyboard::Key::Escape) {
             audio_.playUiClick();
             handleBack();
+            return;
         }
+        if (k->code == sf::Keyboard::Key::Up) { scrollInstruction(-INSTRUCTION_SCROLL_STEP); return; }
+        if (k->code == sf::Keyboard::Key::Down) { scrollInstruction(INSTRUCTION_SCROLL_STEP); return; }
+    }
+    if (const auto* wheel = e.getIf<sf::Event::MouseWheelScrolled>())
+    {
+        scrollInstruction(-wheel->delta * INSTRUCTION_SCROLL_STEP);
     }
 }
 
@@ -1670,6 +1706,10 @@ void UIManager::setState(UIState s)
     }
 
     state_ = s;
+    if (s == UIState::Help && previousState != UIState::Help) {
+        instructionScrollOffset_ = 0.f;
+        instructionContentHeight_ = 0.f;
+    }
     if (s == UIState::Graphic && previousState != UIState::Graphic)
         beginGraphicPreview();
     if (enteringClassic || enteringEndless)
@@ -2332,6 +2372,14 @@ void UIManager::drawActiveDebugHitboxes()
             shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
             win_.draw(shape);
         }
+    } else if (state_ == UIState::Help && instructionAssetLoaded_) {
+        const sf::FloatRect bounds = instructionTextBounds();
+        sf::RectangleShape shape(bounds.size);
+        shape.setPosition(bounds.position);
+        shape.setFillColor(sf::Color::Transparent);
+        shape.setOutlineThickness(3.f);
+        shape.setOutlineColor(bounds.contains(point) ? sf::Color::Green : sf::Color::Red);
+        win_.draw(shape);
     }
 
     if (state_ != UIState::Loading && state_ != UIState::MainMenu && state_ != UIState::Pause && state_ != UIState::GameOver &&
@@ -2853,24 +2901,100 @@ void UIManager::renderRanking()
  */
 void UIManager::renderHelp()
 {
-    drawCenteredText("HOW TO PLAY", 80, 40, sf::Color::White, true);
-    const std::string lines[] = {
-        "- Classic: clear all 10 levels in order.",
-        "- Endless: survive as long as possible.",
-        "- New Game: pick a mode and a name to start.",
-        "- Load Game: continue from a saved slot (3 per mode).",
-        "- Ranking: see the top 100 entries, scrolled 10 at a time.",
-        "- Setting: adjust audio volume.",
-        "- Graphic: pick a character and a background.",
-    };
-    for (int i = 0; i < 7; ++i)
-    {
-        sf::Text t(font_, lines[i], 22);
-        t.setFillColor(sf::Color(220, 220, 220));
-        t.setPosition({ 200, 160.f + i * 40.f });
-        win_.draw(t);
+    if (!instructionAssetLoaded_ || instructionTex_.getSize().x == 0 || !fontLoaded_)
+        return;
+
+    win_.setView(win_.getDefaultView());
+    sf::Sprite panel(instructionTex_);
+    const sf::FloatRect panelBounds = instructionScreenBounds();
+    panel.setPosition(panelBounds.position);
+    panel.setScale({ panelBounds.size.x / instructionTex_.getSize().x,
+                     panelBounds.size.y / instructionTex_.getSize().y });
+    win_.draw(panel);
+
+    const sf::FloatRect textBounds = instructionTextBounds();
+    const float scale = panelBounds.size.x / static_cast<float>(instructionTex_.getSize().x);
+    const unsigned int bodySize = std::max(14u, static_cast<unsigned int>(std::lround(24.f * scale)));
+    const unsigned int headingSize = std::max(16u, static_cast<unsigned int>(std::lround(28.f * scale)));
+    const float lineGap = 8.f * scale;
+    const float availableWidth = textBounds.size.x - INSTRUCTION_TEXT_PADDING * 2.f * scale;
+
+    struct Paragraph { const char* text; bool heading; };
+    static const std::array<Paragraph, 15> content = {{
+        { "HOW TO PLAY CONTROLS", true },
+        { "W / A / S / D or Arrow Keys: Move one grid tile.", false },
+        { "Esc: Pause the game.", false },
+        { "While Paused:", false },
+        { "Press Enter to resume playing.", false },
+        { "Press Esc to save your current run and return to the main menu.", false },
+        { "CORE MECHANICS", true },
+        { "Objective: Cross the road to reach the top of the map while dodging vehicles and obstacles (cars, trucks, cats, and deer).", false },
+        { "Traffic Lights: Control vehicle movement (Red light stops traffic; Green & Yellow lights allow vehicles to move).", false },
+        { "Shield Item: Pick up a shield on a safe tile to absorb 1 collision. Once consumed, it grants a brief period of invincibility.", false },
+        { "Hazards: Falling into an open manhole will instantly end your run.", false },
+        { "GAME MODES", true },
+        { "CLASSIC MODE\nClear finite levels by reaching the destination tile at the top.\nCompleting a level unlocks the next one.\nYour score is based on your completion time.", true },
+        { "ENDLESS MODE\nThe map scrolls continuously after your first step and dynamically generates new sections.\nSurvive as long as you can—falling off the bottom of the screen or taking a hit without a shield ends the run.\nYour score is based on your total survival time.", true },
+        { "", false }
+    }};
+
+    sf::View clipView(textBounds);
+    const sf::Vector2u windowSize = win_.getSize();
+    clipView.setViewport(sf::FloatRect({ textBounds.position.x / windowSize.x, textBounds.position.y / windowSize.y },
+                                       { textBounds.size.x / windowSize.x, textBounds.size.y / windowSize.y }));
+    win_.setView(clipView);
+
+    float y = textBounds.position.y + INSTRUCTION_TEXT_PADDING * scale - instructionScrollOffset_;
+    for (const Paragraph& paragraph : content) {
+        if (std::string(paragraph.text).empty()) continue;
+        std::istringstream source(paragraph.text);
+        std::string rawLine;
+        while (std::getline(source, rawLine)) {
+            const bool subheading = paragraph.heading && (rawLine == "CLASSIC MODE" || rawLine == "ENDLESS MODE");
+            const unsigned int size = (paragraph.heading && !subheading && rawLine == paragraph.text) ? headingSize : bodySize;
+            const bool bold = paragraph.heading && (subheading || rawLine == paragraph.text);
+            for (const std::string& line : wrapInstructionText(font_, rawLine, size, availableWidth)) {
+                sf::Text text(font_, line, size);
+                text.setFillColor(bold ? sf::Color(255, 239, 146) : sf::Color(250, 250, 250));
+                if (bold) text.setStyle(sf::Text::Bold);
+                text.setOutlineColor(sf::Color(20, 36, 64, 210));
+                text.setOutlineThickness(std::max(1.f, scale));
+                text.setPosition({ textBounds.position.x + INSTRUCTION_TEXT_PADDING * scale, y });
+                win_.draw(text);
+                y += static_cast<float>(size) + lineGap;
+            }
+        }
+        y += 12.f * scale;
     }
-    for (auto& b : btns_) b.draw(win_, font_);
+    instructionContentHeight_ = std::max(0.f, y - textBounds.position.y + instructionScrollOffset_);
+    scrollInstruction(0.f);
+    win_.setView(win_.getDefaultView());
+}
+
+sf::FloatRect UIManager::instructionScreenBounds() const
+{
+    const sf::Vector2u textureSize = instructionTex_.getSize();
+    const sf::Vector2u windowSize = win_.getSize();
+    if (textureSize.x == 0 || textureSize.y == 0) return {};
+    const float scale = std::min({ 1.f, windowSize.x / static_cast<float>(textureSize.x),
+                                        windowSize.y / static_cast<float>(textureSize.y) });
+    const sf::Vector2f size(textureSize.x * scale, textureSize.y * scale);
+    return { { (windowSize.x - size.x) * 0.5f, (windowSize.y - size.y) * 0.5f }, size };
+}
+
+sf::FloatRect UIManager::instructionTextBounds() const
+{
+    const sf::FloatRect panel = instructionScreenBounds();
+    if (panel.size.x == 0.f) return {};
+    const float scale = panel.size.x / 1180.f;
+    return { panel.position + INSTRUCTION_TEXT_LOCAL_BOUNDS.position * scale,
+             INSTRUCTION_TEXT_LOCAL_BOUNDS.size * scale };
+}
+
+void UIManager::scrollInstruction(float delta)
+{
+    const float maxOffset = std::max(0.f, instructionContentHeight_ - instructionTextBounds().size.y);
+    instructionScrollOffset_ = std::clamp(instructionScrollOffset_ + delta, 0.f, maxOffset);
 }
 
 /**

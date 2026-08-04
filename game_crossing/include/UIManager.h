@@ -259,6 +259,12 @@ private:
      * @brief Performs the render help operation while preserving the current UI state invariants.
      */
     void renderHelp();
+    /** Returns the centered on-screen bounds of the active Instruction.png artwork. */
+    sf::FloatRect instructionScreenBounds() const;
+    /** Returns the scrollable text region inside the centered instruction artwork. */
+    sf::FloatRect instructionTextBounds() const;
+    /** Moves the help text while clamping it to the first and last content line. */
+    void scrollInstruction(float delta);
     /**
      * @brief Draws gameplay in layer order so world actors remain behind HUD and sidebar controls.
      */
@@ -524,7 +530,7 @@ private:
     sf::Texture scoreTableTex_, saveTex_, quitTex_;
 
     ///< Internal storage used to coordinate UI state and rendering.
-    sf::Texture levelBgTex_, userNameBgTex_, gameModeBgTex_, winTex_, loseTex_;
+    sf::Texture levelBgTex_, userNameBgTex_, gameModeBgTex_, winTex_, loseTex_, instructionTex_;
     ///< Internal storage used to coordinate UI state and rendering.
     sf::Font   rankingFont_;
     ///< Internal storage used to coordinate UI state and rendering.
@@ -550,6 +556,9 @@ private:
     bool       gameModeBgAssetLoaded_ = false;
     bool       winAssetLoaded_ = false;
     bool       loseAssetLoaded_ = false;
+    bool       instructionAssetLoaded_ = false;
+    float      instructionScrollOffset_ = 0.f;
+    float      instructionContentHeight_ = 0.f;
     ///< Internal storage used to coordinate UI state and rendering.
     bool       pauseFrameValid_ = false;
     bool       resultFrameValid_ = false;

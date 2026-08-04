@@ -203,10 +203,10 @@ UIManager::UIManager(sf::RenderWindow& window)
     ranks_.loadAll();
     prog_.load();
 
-    if (!loadingScreen1Tex_.loadFromFile("assets/LoadingScreen1.png"))
-        std::cerr << "[UIManager] failed to load assets/LoadingScreen1.png\n";
-    if (!loadingScreen2Tex_.loadFromFile("assets/LoadingScreen2.png"))
-        std::cerr << "[UIManager] failed to load assets/LoadingScreen2.png\n";
+    if (!loadingScreen1Tex_.loadFromFile("assets/LoadingScreen/LoadingScreen1.png"))
+        std::cerr << "[UIManager] failed to load assets/LoadingScreen/LoadingScreen1.png\n";
+    if (!loadingScreen2Tex_.loadFromFile("assets/LoadingScreen/LoadingScreen2.png"))
+        std::cerr << "[UIManager] failed to load assets/LoadingScreen/LoadingScreen2.png\n";
 
     loadingView_ = win_.getDefaultView();
     setState(UIState::Loading);
